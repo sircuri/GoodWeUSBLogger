@@ -3,6 +3,9 @@ Python based logger for GoodWe inverters using USB.
 
 based on: https://github.com/jantenhove/GoodWeLogger
 
+## Required modules
+
+* ioctl_opt
 
 ## Usage
 
