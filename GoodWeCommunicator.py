@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import time
-import pyudev
+#import pyudev
 import hidrawpure as hidraw
 import os, fcntl
 
