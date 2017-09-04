@@ -130,8 +130,6 @@ class HIDRaw(object):
         length = len(report) + 1
         buf = ctypes.create_string_buffer(b(chr(report_num) + report), length)
         self._device.write(buf)
-        #self._ioctl(_HIDIOCSREPORT(length), buf, True)
-        #print _HIDIOCSREPORT(length)
 
 
     def sendFeatureReport(self, report, report_num=0):
