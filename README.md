@@ -9,8 +9,10 @@ based on: https://github.com/jantenhove/GoodWeLogger
 
 ## Usage
 
+Check with lsusb/dmesg which device is attached to the GoodWe Inverter. Use that as device in the call to the constructor.
+
 ```python
-import hidrawpure as hidraw
+import GoodWeCommunicator as goodwe
 
 gw = goodwe.GoodWeCommunicator('/dev/hidraw1', False)
 gw.start()

@@ -9,10 +9,45 @@ millis = lambda: int(round(time.time() * 1000))
 
 class GoodweInverterInformation(object):
 
+	ERRORS = []
+	ERRORS.append("GFCI Device Failure")
+        ERRORS.append("AC HCT Failure")
+        ERRORS.append("TBD")
+        ERRORS.append("DCI Consistency Failure")
+        ERRORS.append("GFCI Consistency Failure")
+        ERRORS.append("TBD")
+        ERRORS.append("TBD")
+        ERRORS.append("TBD")
+        ERRORS.append("TBD")
+        ERRORS.append("Utility Loss")
+        ERRORS.append("Gournd I Failure")
+        ERRORS.append("DC Bus High")
+        ERRORS.append("Internal Version Unmatch")
+        ERRORS.append("Over Temperature")
+        ERRORS.append("Auto Test Failure")
+        ERRORS.append("PV Over Voltage")
+        ERRORS.append("Fan Failure")
+        ERRORS.append("Vac Failure")
+        ERRORS.append("Isolation Failure")
+        ERRORS.append("DC Injection High")
+        ERRORS.append("TBD")
+        ERRORS.append("TBD")
+        ERRORS.append("Fac Consistency Failure")
+        ERRORS.append("Vac Consistency Failure")
+        ERRORS.append("TBD")
+        ERRORS.append("Relay Check Failure")
+        ERRORS.append("TBD")
+        ERRORS.append("TBD")
+        ERRORS.append("TBD")
+        ERRORS.append("Fac Failure")
+        ERRORS.append("EEPROM R/W Failure")
+        ERRORS.append("Internal Communication Failure")
+
+
 	def __init__(self):
 		self.serialNumber = [17]	#serial number (ascii) from inverter with zero appended
-		self.address = 0				#address provided by this software
-		self.addressConfirmed = False;		#wether or not the address is confirmed by te inverter
+		self.address = 0		#address provided by this software
+		self.addressConfirmed = False;	#wether or not the address is confirmed by te inverter
 		self.lastSeen = 0		#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
 		self.isOnline = False		#is the inverter online (see above)
 		self.isDTSeries	= False		#is tri phase inverter (get phase 2, 3 info)
@@ -60,10 +95,7 @@ class GoodWeCommunicator(object):
 
 	def __init__(self, device, inDebug):
 		self.debugMode = inDebug
-		#set the fixed part of our buffer
-		self.headerBuffer = [0xAA, 0x55, self.GOODWE_COMMS_ADDRESS, 0x0, 0x0, 0x0, 0x0]
 		self.inputBuffer = [0] * self.BUFFERSIZE
-		self.outputBuffer = [0] * self.BUFFERSIZE
 		self.lastReceived = 0 					#timeout detection
 		self.startPacketReceived = False		#start packet marker
 		self.lastReceivedByte = 0				#packet start consist of 2 bytes to test. This holds the previous byte
@@ -72,17 +104,16 @@ class GoodWeCommunicator(object):
 
 		self.lastDiscoverySent = 0				#discovery needs to be sent every 10 secs. 
 		self.lastInfoUpdateSent = 0				#last info update sent to the registered inverters
-		self.lastUsedAddress = 0				#last used address counter. When overflows will only allocate not used
 
 		self.inverter = GoodweInverterInformation()
+
+		#open in non-blocking mode
 		self.devfp = open(device, 'r+b')
-		
 		fd = self.devfp.fileno()
 		flag = fcntl.fcntl(fd, fcntl.F_GETFL)
 		fcntl.fcntl(fd, fcntl.F_SETFL, flag | os.O_NONBLOCK)
 		
 		self.device = hidraw.HIDRaw(self.devfp)
-
 
 		
 	def start(self):
@@ -119,7 +150,6 @@ class GoodWeCommunicator(object):
 		buffer.append(low)
 
 		fullBuffer = bytearray([0xCC, 0x99, len(buffer)])
-		#fullBuffer = bytearray()
 		fullBuffer.extend(buffer)
 
 		if self.debugMode:
@@ -141,9 +171,7 @@ class GoodWeCommunicator(object):
 
 
 	def checkIncomingData(self):
-	
 		try:
-		
                         datstr = self.devfp.read(64)
 
 			for data in datstr:
@@ -171,8 +199,6 @@ class GoodWeCommunicator(object):
 						#got the complete packet
 						#parse it
 						self.startPacketReceived = False
-                                                print("Got complete package: ", end='')
-						print(self.curReceivePtr)
 						self.parseIncomingData(self.curReceivePtr)
 
 				elif not self.startPacketReceived:
@@ -240,18 +266,16 @@ class GoodWeCommunicator(object):
 		if self.inverter.serialNumber == serialNumber[0:16]:
 			print("Already registered inverter reregistered with address: ", end='')
 			print(self.inverter.address)
-			#found it. Set to unconfirmed and send out the existing address to the inverter
+			#Set to unconfirmed and send out the existing address to the inverter
 			self.inverter.addressConfirmed = False
 			self.inverter.lastSeen = millis()
 			self.sendAllocateRegisterAddress(serialNumber, self.inverter.address)
 			return
  
-		#still here. This a inverter
 		self.inverter.addressConfirmed = False
 		self.inverter.lastSeen = millis()
-		self.inverter.isDTSeries = True; #TODO. Determine if DT series inverter by getting info
+		self.inverter.isDTSeries = False
 		self.inverter.serialNumber = serialNumber[0:16]
-		#get the address. Add one (overflows at 255) and check if not in use
 		self.inverter.address = 11
 		if self.debugMode:
 			print("New inverter found")
@@ -302,6 +326,7 @@ class GoodWeCommunicator(object):
  
 		#data from iniverter, online
 		self.inverter.lastSeen = millis()
+		self.inverter.isDTSeries = (dataLength == 66) #is this always true?
 		dtPtr = 0
 		self.inverter.vpv1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
@@ -339,25 +364,52 @@ class GoodWeCommunicator(object):
 		dtPtr += 2
 		self.inverter.workMode = (data[dtPtr] << 8) | (data[dtPtr + 1])
 		dtPtr += 2
-		#TODO: Get the other values too
 		self.inverter.temp = self.bytesToFloat(data[dtPtr:], 10)
+		dtPtr += 2
+                errorMessage = (data[dtPtr] << 24) | (data[dtPtr + 1] << 16) | (data[dtPtr + 2] << 8) | (data[dtPtr + 3])
+		self.inverter.errorMessage = [i for i, x in enumerate(reversed(bin(errorMessage))) if x == "1"]
+		dtPtr += 4
+		self.inverter.eTotal = self.bytes4ToFloat(data[dtPtr:], 10)
+                dtPtr += 4
+                self.inverter.hTotal = (data[dtPtr] << 24) | (data[dtPtr + 1] << 16) | (data[dtPtr + 2] << 8) | (data[dtPtr + 3])
+		dtPtr += 4
+		self.inverter.tempFault = self.bytesToFloat(data[dtPtr:], 10)
+		dtPtr += 2
+                self.inverter.pv1Fault = self.bytesToFloat(data[dtPtr:], 10)
+                dtPtr += 2
+                self.inverter.pv2Fault = self.bytesToFloat(data[dtPtr:], 10)
+                dtPtr += 2
+                self.inverter.line1VFault = self.bytesToFloat(data[dtPtr:], 10)
+                dtPtr += 2
 		if self.inverter.isDTSeries:
-			dtPtr += 34
-		else:
-			dtPtr += 26
+                	self.inverter.line2VFault = self.bytesToFloat(data[dtPtr:], 10)
+                	dtPtr += 2
+                	self.inverter.line3VFault = self.bytesToFloat(data[dtPtr:], 10)
+                	dtPtr += 2
+		
+                self.inverter.line1FFault = self.bytesToFloat(data[dtPtr:], 100)
+                dtPtr += 2
+                if self.inverter.isDTSeries:
+                        self.inverter.line2FFault = self.bytesToFloat(data[dtPtr:], 100)
+                        dtPtr += 2
+                        self.inverter.line3FFault = self.bytesToFloat(data[dtPtr:], 100)
+                        dtPtr += 2
+
+                self.inverter.gcfiFault = (data[dtPtr] << 8) | (data[dtPtr + 1])
+                dtPtr += 2
 		self.inverter.eDay = self.bytesToFloat(data[dtPtr:], 10)
 		#isonline is set after first batch of data is set so readers get actual data
 		self.inverter.isOnline = True
 
-		print ("Current output: ", end = '')
-		print (self.inverter.pac, end = '')
-		print ("EDay: ", end = '')
-		print (self.inverter.eDay)
-		 
 		 
 	def bytesToFloat(self, bt, factor):
-		#convert two byte to float by converting to short and then dividing it by factor
+		#convert two byte to float and then dividing it by factor
 		return float((bt[0] << 8) | bt[1]) / factor
+
+
+        def bytes4ToFloat(self, bt, factor):
+                #convert four byte to float and then dividing it by factor
+                return float( (bt[0] << 24) | (bt[1] << 16) | (bt[2] << 8) | bt[3]) / factor
 
 
 	def sendDiscovery(self):
@@ -417,4 +469,8 @@ class GoodWeCommunicator(object):
 			self.lastInfoUpdateSent = millis()
 
 		self.checkIncomingData()
+
+
+	def getInverter(self):
+		return self.inverter
 
