@@ -46,8 +46,9 @@ class GoodweInverterInformation(object):
 
 	def __init__(self):
 		self.serialNumber = [17]	#serial number (ascii) from inverter with zero appended
+		self.serial = ""
 		self.address = 0		#address provided by this software
-		self.addressConfirmed = False;	#wether or not the address is confirmed by te inverter
+		self.addressConfirmed = False	#wether or not the address is confirmed by te inverter
 		self.lastSeen = 0		#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
 		self.isOnline = False		#is the inverter online (see above)
 		self.version = 0		#1 or 3 phase inverter
@@ -277,6 +278,7 @@ class GoodWeCommunicator(object):
 		self.inverter.lastSeen = millis()
 		self.inverter.isDTSeries = False
 		self.inverter.serialNumber = serialNumber[0:16]
+		self.inverter.serial = "".join(map(chr, serialNumber[0:16]))
 		self.inverter.address = 11
 		if self.debugMode:
 			print("New inverter found")
