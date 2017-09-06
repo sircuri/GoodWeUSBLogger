@@ -59,14 +59,19 @@ class MyDaemon(Daemon):
 				if (millis() - lastUpdate) > interval:
 
 					inverter = gw.getInverter()
-					if inverter.isOnline:
-						log.debug('Publishing telegram to MQTT')
-						datagram = json.dumps(inverter.__dict__)
-						client.publish(mqtttopic, datagram)
-						client.publish('power/solar/online', 1)
-					else:
-						log.debug('Inverter offline')
-						client.publish('power/solar/online', 0)
+					
+					if inverter.addressConfirmed:
+
+						combinedtopic = mqtttopic + '/' + inverter.serial
+
+						if inverter.isOnline:
+							log.debug('Publishing telegram to MQTT')
+							datagram = json.dumps(inverter.__dict__)
+							client.publish(combinedtopic + '/data', datagram)
+							client.publish(combinedtopic + '/online', 1)
+						else:
+							log.debug('Inverter offline')
+							client.publish(combinedtopic + '/online', 0)
 						
 					lastUpdate = millis()
 
