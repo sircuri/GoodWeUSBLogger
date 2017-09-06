@@ -44,7 +44,7 @@ class MyDaemon(Daemon):
 		try:
 			gw = goodwe.GoodWeCommunicator(dev, debugMode)
 			gw.start()
-		except Error as e:
+		except Exception as e:
 			log.error(e)
 			sys.exit ("Fout bij het openen van device %s. "  % dev)	  
 
@@ -63,6 +63,10 @@ class MyDaemon(Daemon):
 						log.debug('Publishing telegram to MQTT')
 						datagram = json.dumps(inverter.__dict__)
 						client.publish(mqtttopic, datagram)
+						client.publish('power/solar/online', 1)
+					else:
+						log.debug('Inverter offline')
+						client.publish('power/solar/online', 0)
 						
 					lastUpdate = millis()
 
