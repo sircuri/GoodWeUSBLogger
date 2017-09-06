@@ -6,6 +6,7 @@ based on: https://github.com/jantenhove/GoodWeLogger
 ## Required modules
 
 * ioctl_opt
+* configparser
 
 ## Usage
 
