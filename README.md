@@ -7,6 +7,7 @@ based on: https://github.com/jantenhove/GoodWeLogger
 
 * ioctl_opt
 * configparser
+* paho-mqtt
 
 ## Usage
 
