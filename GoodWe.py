@@ -1,14 +1,18 @@
 #!/usr/bin/python3 -tt
-from daemonpy import Daemon
 from __future__ import print_function
+from daemonpy.daemon import Daemon
 
 import configparser
 import logging
+import sys
 import paho.mqtt.client as mqtt
+import time
 
 import GoodWeCommunicator as goodwe
 
-logging.basicConfig(filename='goodwe.log', level=logging.INFO)
+millis = lambda: int(round(time.time() * 1000))
+
+logging.basicConfig(filename='goodwe.log', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 class MyDaemon(Daemon):
@@ -75,7 +79,7 @@ class MyDaemon(Daemon):
 		
 
 if __name__ == "__main__":
-	daemon = MyDaemon('goodwecomm.pid', '/dev/null', 'goodwecomm.out', 'goodwecomm.err')
+	daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/tmp/goodwecomm.out', '/tmp/goodwecomm.err')
 	if len(sys.argv) == 2:
 		if 'start' == sys.argv[1]:
 			daemon.start()
