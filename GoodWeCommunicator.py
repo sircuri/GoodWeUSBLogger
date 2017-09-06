@@ -50,7 +50,7 @@ class GoodweInverterInformation(object):
 		self.addressConfirmed = False;	#wether or not the address is confirmed by te inverter
 		self.lastSeen = 0		#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
 		self.isOnline = False		#is the inverter online (see above)
-		self.isDTSeries	= False		#is tri phase inverter (get phase 2, 3 info)
+		self.version = 0		#1 or 3 phase inverter
 
 		#inverert info from inverter pdf. Updated by the inverter info command
 		self.vpv1 = 0.0
@@ -209,7 +209,8 @@ class GoodWeCommunicator(object):
 			if self.startPacketReceived and millis() - self.lastReceived > self.PACKET_TIMEOUT:
 				#there is an open packet timeout. 
 				self.startPacketReceived = False #wait for start packet again
-				print("Comms timeout.")
+				if self.debugMode:
+					print("Comms timeout.")
 
 
 	def parseIncomingData(self, incomingDataLength):
@@ -323,10 +324,13 @@ class GoodWeCommunicator(object):
 		#parse all pairs of two bytes and output them
 		if dataLength < 44: #minimum for non dt series
 			return
- 
+
 		#data from iniverter, online
 		self.inverter.lastSeen = millis()
-		self.inverter.isDTSeries = (dataLength == 66) #is this always true?
+		if dataLength == 66:
+			self.inverter.version = 3
+		else:
+			self.inverter.version = 1
 		dtPtr = 0
 		self.inverter.vpv1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
@@ -338,7 +342,7 @@ class GoodWeCommunicator(object):
 		dtPtr += 2
 		self.inverter.vac1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		if self.inverter.isDTSeries:
+		if self.inverter.version == 3:
 			self.inverter.vac2 = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
 			self.inverter.vac3 = self.bytesToFloat(data[dtPtr:], 10)
@@ -346,7 +350,7 @@ class GoodWeCommunicator(object):
  
 		self.inverter.iac1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		if self.inverter.isDTSeries:
+		if self.inverter.version == 3:
 			self.inverter.iac2 = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
 			self.inverter.iac3 = self.bytesToFloat(data[dtPtr:], 10)
@@ -354,7 +358,7 @@ class GoodWeCommunicator(object):
  
 		self.inverter.fac1 = self.bytesToFloat(data[dtPtr:], 100)
 		dtPtr += 2
-		if self.inverter.isDTSeries:
+		if self.inverter.version == 3:
 			self.inverter.fac2 = self.bytesToFloat(data[dtPtr:], 100)
 			dtPtr += 2
 			self.inverter.fac3 = self.bytesToFloat(data[dtPtr:], 100)
@@ -381,7 +385,7 @@ class GoodWeCommunicator(object):
                 dtPtr += 2
                 self.inverter.line1VFault = self.bytesToFloat(data[dtPtr:], 10)
                 dtPtr += 2
-		if self.inverter.isDTSeries:
+		if self.inverter.version == 3:
                 	self.inverter.line2VFault = self.bytesToFloat(data[dtPtr:], 10)
                 	dtPtr += 2
                 	self.inverter.line3VFault = self.bytesToFloat(data[dtPtr:], 10)
@@ -389,7 +393,7 @@ class GoodWeCommunicator(object):
 		
                 self.inverter.line1FFault = self.bytesToFloat(data[dtPtr:], 100)
                 dtPtr += 2
-                if self.inverter.isDTSeries:
+                if self.inverter.version == 3:
                         self.inverter.line2FFault = self.bytesToFloat(data[dtPtr:], 100)
                         dtPtr += 2
                         self.inverter.line3FFault = self.bytesToFloat(data[dtPtr:], 100)
@@ -398,6 +402,7 @@ class GoodWeCommunicator(object):
                 self.inverter.gcfiFault = (data[dtPtr] << 8) | (data[dtPtr + 1])
                 dtPtr += 2
 		self.inverter.eDay = self.bytesToFloat(data[dtPtr:], 10)
+
 		#isonline is set after first batch of data is set so readers get actual data
 		self.inverter.isOnline = True
 

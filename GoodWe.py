@@ -1,4 +1,3 @@
-#!/usr/bin/python3 -tt
 from __future__ import print_function
 from daemonpy.daemon import Daemon
 
@@ -7,12 +6,13 @@ import logging
 import sys
 import paho.mqtt.client as mqtt
 import time
+import json
 
 import GoodWeCommunicator as goodwe
 
 millis = lambda: int(round(time.time() * 1000))
 
-logging.basicConfig(filename='goodwe.log', level=logging.DEBUG)
+logging.basicConfig(filename='goodwe.log', level=logging.INFO)
 log = logging.getLogger(__name__)
 
 class MyDaemon(Daemon):
@@ -27,7 +27,7 @@ class MyDaemon(Daemon):
 		
 		dev = config.get("inverter", "dev")
 		debugMode = config.getboolean("inverter", "debug")
-		interval = config.get("inverter", "pollinterval")
+		interval = config.getint("inverter", "pollinterval")
 		
 		log.debug('Open connect to {} with: {}'.format(dev, ', '.join('{}={}'.format(key, value) for key, value in config.items())))
 
@@ -50,8 +50,8 @@ class MyDaemon(Daemon):
 
 		log.info('New connection opened to %s', dev)
 		
-		lastUpdate = 0
-		
+		lastUpdate = millis()
+
 		while True:
 			try:
 				gw.handle()
@@ -60,13 +60,8 @@ class MyDaemon(Daemon):
 
 					inverter = gw.getInverter()
 					if inverter.isOnline:
-						print("Output: ", end ='')
-						print(inverter.pac, end='')
-						print(" W, EDay: ", end='')
-						print(inverter.eDay, end='')
-						print(" kWh")
-						
 						log.debug('Publishing telegram to MQTT')
+						datagram = json.dumps(inverter.__dict__)
 						client.publish(mqtttopic, datagram)
 						
 					lastUpdate = millis()
