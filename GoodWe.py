@@ -51,6 +51,7 @@ class MyDaemon(Daemon):
 		log.info('New connection opened to %s', dev)
 		
 		lastUpdate = millis()
+		lastCycle = millis()
 
 		while True:
 			try:
@@ -74,6 +75,11 @@ class MyDaemon(Daemon):
 							client.publish(combinedtopic + '/online', 0)
 						
 					lastUpdate = millis()
+				
+				sleepTime = (500 - (millis() - lastCycle))
+				if sleepTime > 0:
+					time.sleep(sleepTime / 1000)
+				lastCycle = millis()
 
 			except Exception as err:
 				log.error(err)
