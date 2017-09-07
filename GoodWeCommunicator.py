@@ -218,15 +218,15 @@ class GoodWeCommunicator(object):
 		#first check the crc
 		#Data always start without the start bytes of 0xAA 0x55
 		#incomingDataLength also has the crc data in it
-		if self.debugMode:
-			print("Parsing incoming data with length: ", end='')
-			self.debugPrintHex(incomingDataLength)
-			print(". ", end='')
-			self.debugPrintHex(0xAA)
-			self.debugPrintHex(0x55)
-			for cnt in range(0, incomingDataLength):
-				self.debugPrintHex(self.inputBuffer[cnt])
-			print(".", end='')
+#		if self.debugMode:
+#			print("Parsing incoming data with length: ", end='')
+#			self.debugPrintHex(incomingDataLength)
+#			print(". ", end='')
+#			self.debugPrintHex(0xAA)
+#			self.debugPrintHex(0x55)
+#			for cnt in range(0, incomingDataLength):
+#				self.debugPrintHex(self.inputBuffer[cnt])
+#			print(".", end='')
  
 		crc = 0xAA + 0x55
 		for cnt in range(0, incomingDataLength - 2):
@@ -235,14 +235,14 @@ class GoodWeCommunicator(object):
 		high = (crc >> 8) & 0xff
 		low = crc & 0xff
  
-		if self.debugMode:
-			print("CRC received: ", end='')
-			self.debugPrintHex(self.inputBuffer[incomingDataLength - 2])
-			self.debugPrintHex(self.inputBuffer[incomingDataLength - 1])
-			print(", CRC: ", end='')
-			self.debugPrintHex(high)
-			self.debugPrintHex(low)
-			print(".")
+#		if self.debugMode:
+#			print("CRC received: ", end='')
+#			self.debugPrintHex(self.inputBuffer[incomingDataLength - 2])
+#			self.debugPrintHex(self.inputBuffer[incomingDataLength - 1])
+#			print(", CRC: ", end='')
+#			self.debugPrintHex(high)
+#			self.debugPrintHex(low)
+#			print(".")
  
 		#match the crc
 		if not (high == self.inputBuffer[incomingDataLength - 2] and low == self.inputBuffer[incomingDataLength - 1]):
@@ -322,6 +322,8 @@ class GoodWeCommunicator(object):
 
 
 	def handleIncomingInformation(self, address, dataLength, data):
+		if self.debugMode:
+			print("Handle incoming information")
 		#need to parse the information and update our struct
 		#parse all pairs of two bytes and output them
 		if dataLength < 44: #minimum for non dt series
