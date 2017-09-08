@@ -1,5 +1,6 @@
 from __future__ import print_function
 from daemonpy.daemon import Daemon
+from pyudev import Devices, Context, Monitor, MonitorObserver
 
 import configparser
 import logging
@@ -7,6 +8,7 @@ import sys
 import paho.mqtt.client as mqtt
 import time
 import json
+import os
 
 import GoodWeCommunicator as goodwe
 
@@ -25,11 +27,13 @@ class MyDaemon(Daemon):
 		mqtttopic = config.get("mqtt", "topic")
 		mqttclientid = config.get("mqtt", "clientid")
 		
-		dev = config.get("inverter", "dev")
+		#self.dev = config.get("inverter", "dev")
 		debugMode = config.getboolean("inverter", "debug")
 		interval = config.getint("inverter", "pollinterval")
 		
-		log.debug('Open connect to {} with: {}'.format(dev, ', '.join('{}={}'.format(key, value) for key, value in config.items())))
+		self.dev = None
+		
+		#log.debug('Open connect to {} with: {}'.format(dev, ', '.join('{}={}'.format(key, value) for key, value in config.items())))
 
 		try:
 			client = mqtt.Client(mqttclientid);
@@ -40,26 +44,32 @@ class MyDaemon(Daemon):
 			return
 
 		log.info('Connected to MQTT %s', mqttserver)
-			
-		try:
-			gw = goodwe.GoodWeCommunicator(dev, debugMode)
-			gw.start()
-		except Exception as e:
-			log.error(e)
-			sys.exit ("Fout bij het openen van device %s. "  % dev)	  
+		
+		self.context = Context()
+		
+		self.dev = self.findGoodWeDevice('0084', '0041')
+		if self.dev is None:
+			log.error('No GoodWe inverter found.')
+			return
+		log.info('Found GoodWe device at %s', self.dev)
+		
+		self.gw = goodwe.GoodWeCommunicator(self.dev, debugMode)
 
-		log.info('New connection opened to %s', dev)
+		self.monitor = Monitor.from_netlink(self.context)
+		self.monitor.filter_by(subsystem='usb')
+		self.observer = MonitorObserver(self.monitor, callback=self.add_device_event, name='monitor-observer')
+		self.observer.start()		
 		
 		lastUpdate = millis()
 		lastCycle = millis()
 
 		while True:
 			try:
-				gw.handle()
+				self.gw.handle()
 
 				if (millis() - lastUpdate) > interval:
 
-					inverter = gw.getInverter()
+					inverter = self.gw.getInverter()
 					
 					if inverter.addressConfirmed:
 
@@ -76,18 +86,54 @@ class MyDaemon(Daemon):
 						
 					lastUpdate = millis()
 				
-				sleepTime = (500 - (millis() - lastCycle))
-				if sleepTime > 0:
-					time.sleep(sleepTime / 1000)
-				lastCycle = millis()
-
+				time.sleep(0.1)
+				
 			except Exception as err:
 				log.error(err)
 				break
 
 		client.loop_stop()
-		
+		self.observer.stop()	
 
+		
+	def isGoodWeDevice(self, device, vendorId, modelId):
+		print(device)
+		for el in device:
+			print(el)
+			print(device[el])
+		#if "ID_VENDOR_ID" in device and "ID_MODEL_ID" in device:
+		if device['DEVPATH'].find(vendorId + ":" + modelId) > -1:
+			return True #device["ID_VENDOR_ID"] == vendorId and device["ID_MODEL_ID"] == modelId
+
+		return False
+	
+		
+	def add_device_event(self, device):
+		if device.action == 'add':
+			log.info('Detected new USB device %s', device['DEVNAME'])
+			newdev = self.findGoodWeDevice('0084', '0041')
+
+			if not newdev is None:
+				self.dev = newdev
+				log.info ('New GoodWe device at %s', self.dev)
+				self.gw.setDevice(self.dev)
+			else:
+				log.info('Not a GoodWe device?')
+
+
+	def findGoodWeDevice(self, vendorId, modelId):
+		usb_list = [d for d in os.listdir("/dev") if d.startswith("hidraw")]
+		for hidraw in usb_list:
+			device = "/dev/" + hidraw
+
+			udev = Devices.from_device_file(self.context, device)
+
+			if self.isGoodWeDevice(udev, vendorId, modelId):
+				return device
+		
+		return None
+
+	
 if __name__ == "__main__":
 	daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/var/log/goodwe/comm.out', '/var/log/goodwe/comm.err')
 	if len(sys.argv) == 2:
