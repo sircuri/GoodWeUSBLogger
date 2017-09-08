@@ -189,12 +189,12 @@ class GoodWeCommunicator(object):
 
 		if self.debugMode:
 			print("Sending data to inverter(s): ", end='')
-                	for cnt in range(len(fullBuffer)):
-                                self.debugPrintHex(fullBuffer[cnt])
-                        print("CRC high/low: ", end='')
-                        self.debugPrintHex(high)
-                        self.debugPrintHex(low)
-                        print(".")
+			for cnt in range(len(fullBuffer)):
+				self.debugPrintHex(fullBuffer[cnt])
+			print("CRC high/low: ", end='')
+			self.debugPrintHex(high)
+			self.debugPrintHex(low)
+			print(".")
 
 		self.device.sendOutputReport(bytes(fullBuffer))
 		return len(buffer) #header, data, crc
