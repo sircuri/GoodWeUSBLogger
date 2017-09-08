@@ -511,13 +511,11 @@ class GoodWeCommunicator(object):
 			self.openDevice()
 		
 		elif self.state == State.DISCOVER:
-			print("step discover")
 			if millis() - self.lastDiscoverySent >= self.DISCOVERY_INTERVAL:
 				self.sendDiscovery()
 				self.lastDiscoverySent = millis()
 		
 		elif self.state == State.ALLOC:
-			print("step alloc")
 			self.sendAllocateRegisterAddress(self.inverter.serialNumber, self.inverter.address)
  
 		elif self.state == State.ALLOC_ASK_INFO:
