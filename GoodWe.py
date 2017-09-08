@@ -1,3 +1,5 @@
+#!/usr/bin/python -tt
+
 from __future__ import print_function
 from daemonpy.daemon import Daemon
 from pyudev import Devices, Context, Monitor, MonitorObserver
@@ -135,7 +137,7 @@ class MyDaemon(Daemon):
 
 	
 if __name__ == "__main__":
-	daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/var/log/goodwe/comm.out', '/var/log/goodwe/comm.err')
+	daemon = MyDaemon('/var/run/goodwe/goodwecomm.pid', '/dev/null', '/var/log/goodwe/comm.out', '/var/log/goodwe/comm.err')
 	if len(sys.argv) == 2:
 		if 'start' == sys.argv[1]:
 			daemon.start()
