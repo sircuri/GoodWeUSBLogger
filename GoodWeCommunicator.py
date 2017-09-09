@@ -314,22 +314,13 @@ class GoodWeCommunicator(object):
 		if length != 16:
 			return
  
-		if self.inverter.serialNumber == serialNumber[0:16]:
-			self.log.info("Already registered inverter reregistered with address: %s", self.inverter.address)
-			#Set to unconfirmed and send out the existing address to the inverter
-			self.inverter.addressConfirmed = False
-			self.inverter.lastSeen = millis()
-			
-			self.setState(State.ALLOC)
-			return
- 
 		self.inverter.addressConfirmed = False
 		self.inverter.lastSeen = millis()
 		self.inverter.isDTSeries = False
 		self.inverter.serialNumber = serialNumber[0:16]
 		self.inverter.serial = "".join(map(chr, serialNumber[0:16]))
 		self.inverter.address = self.INVERTER_COMMS_ADDRESS
-		self.log.info("New inverter found")
+		self.log.info("Inverter found")
  
 		self.setState(State.ALLOC)
  
@@ -473,11 +464,11 @@ class GoodWeCommunicator(object):
 	def checkOfflineInverter(self):
 		#check inverter timeout
 		if self.inverter.isOnline:
-			newOnline = (millis() - self.inverter.lastSeen < self.OFFLINE_TIMEOUT)
+			newOnline = ((millis() - self.inverter.lastSeen) < self.OFFLINE_TIMEOUT)
 
 			#check if inverter timed out
 			if not newOnline and self.inverter.isOnline:
-				self.log.debug("Marking inverter @ address %s offline", self.inverter.address)
+				self.log.info("Marking inverter @ address %s offline", self.inverter.address)
 				self.setState(State.OFFLINE)
 
 			self.inverter.isOnline = newOnline
@@ -498,6 +489,7 @@ class GoodWeCommunicator(object):
 			if self.state == State.RUNNING:
 				self.statetime = millis()
 			else:
+				self.log.info("State machine time-out. Last state: %s", self.state)
 				self.state = State.OFFLINE
 	
 		if self.state == State.OFFLINE:
