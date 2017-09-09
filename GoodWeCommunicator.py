@@ -102,6 +102,7 @@ class GoodWeCommunicator(object):
 	GOODWE_COMMS_ADDRESS = 0x80		#our address
 	INVERTER_COMMS_ADDRESS = 0x0B		#inverter address
 	PACKET_TIMEOUT = 500			#0.5 sec packet timeout
+	STATE_TIMEOUT = 5000			# 5 seconds timeout between states
 	OFFLINE_TIMEOUT = 30000			#30 seconds no data -> inverter offline
 	DISCOVERY_INTERVAL = 10000		#10 secs between discovery 
 	INFO_INTERVAL = 1000			#get inverter info every second
@@ -121,6 +122,7 @@ class GoodWeCommunicator(object):
 		self.lastInfoUpdateSent = 0				#last info update sent to the registered inverters
 
 		self.state = State.OFFLINE
+		self.statetime = millis()
 
 		self.inverter = GoodweInverterInformation()
 		self.rawdevice = None
@@ -151,7 +153,7 @@ class GoodWeCommunicator(object):
 		self.lastWaitTime = 0
 		
 		if self.openDevice():
-			self.state = State.CONNECTED
+			self.setState(State.CONNECTED)
 	
 	
 	def findGoodWeUSBDevice(self, vendorId, modelId):
@@ -198,6 +200,10 @@ class GoodWeCommunicator(object):
 		self.devfp = None
 		self.rawdevice = None
 
+	def setState(self, state):
+		self.state = state
+		self.statetime = millis()
+		
 
 	def sendRemoveRegistration(self):
 		#send out the remove address to the inverter. If the inverter is still connected it will reconnect after discovery
@@ -314,7 +320,7 @@ class GoodWeCommunicator(object):
 			self.inverter.addressConfirmed = False
 			self.inverter.lastSeen = millis()
 			
-			self.state = State.ALLOC
+			self.setState(State.ALLOC)
 			return
  
 		self.inverter.addressConfirmed = False
@@ -325,7 +331,7 @@ class GoodWeCommunicator(object):
 		self.inverter.address = self.INVERTER_COMMS_ADDRESS
 		self.log.info("New inverter found")
  
-		self.state = State.ALLOC
+		self.setState(State.ALLOC)
  
 		 
 	def sendAllocateRegisterAddress(self, serialNumber, address):
@@ -338,7 +344,7 @@ class GoodWeCommunicator(object):
 		#need to send alloc msg
 		self.sendData(0x7F, 0x00, 0x01, 17, registerData)
 		
-		self.state = State.ALLOC_WAIT_CONFIRM
+		self.setState(State.ALLOC_WAIT_CONFIRM)
  
 
 	def handleRegistrationConfirmation(self, address):
@@ -352,10 +358,10 @@ class GoodWeCommunicator(object):
 			self.inverter.lastSeen = millis()
  
 			#get the information straight away
-			self.state = State.ALLOC_ASK_INFO
+			self.setState(State.ALLOC_ASK_INFO)
 		else:
 			self.log.debug("Error. Could not find the inverter with address: %s", address)
-			self.state = State.OFFLINE
+			self.setState(State.OFFLINE)
 
 
 	def handleIncomingInformation(self, address, dataLength, data):
@@ -472,7 +478,7 @@ class GoodWeCommunicator(object):
 			#check if inverter timed out
 			if not newOnline and self.inverter.isOnline:
 				self.log.debug("Marking inverter @ address %s offline", self.inverter.address)
-				self.state = State.OFFLINE
+				self.setState(State.OFFLINE)
 
 			self.inverter.isOnline = newOnline
 
@@ -480,18 +486,26 @@ class GoodWeCommunicator(object):
 	def askInverterForInformation(self, force = False):
 		if force or (self.inverter.addressConfirmed and self.inverter.isOnline):
 			self.sendData(self.inverter.address, 0x01, 0x01, 0)
-			self.state = State.RUNNING
+			self.setState(State.RUNNING)
 		else:
 			self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
 
 
 	def handle(self):
+	
+		# check for state timeouts
+		if ((millis() - self.statetime) > self.STATE_TIMEOUT):
+			if self.state == State.RUNNING:
+				self.statetime = millis()
+			else:
+				self.state = State.OFFLINE
+	
 		if self.state == State.OFFLINE:
 			self.resetUSBDevice()
 		
 		elif self.state == State.CONNECTED:
 			self.sendRemoveRegistration()
-			self.state = State.DISCOVER
+			self.setState(State.DISCOVER)
 		
 		else:
 			self.checkIncomingData()
