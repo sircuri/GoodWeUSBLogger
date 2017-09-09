@@ -3,6 +3,7 @@ from daemonpy.daemon import Daemon
 
 import configparser
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import sys
 import paho.mqtt.client as mqtt
 import time
@@ -31,6 +32,9 @@ class MyDaemon(Daemon):
 			raise ValueError('Invalid log level: %s' % loglevel)
 			
 		logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename='/home/pi/GoodWeUSBLogger/goodwecomm.log', level=numeric_level)
+		#log = logging.getLogger("Timed Rotating Log")
+		#trfh = TimedRotatingFileHandler('/home/pi/GoodWeUSBLogger/goodwecomm.log', when='midnight', interval=1, backupCount=4, encoding=None, delay=False, utc=False)
+		#log.addHandler(trfh)
 		
 		try:
 			client = mqtt.Client(mqttclientid);

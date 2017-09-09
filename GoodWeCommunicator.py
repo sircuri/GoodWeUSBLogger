@@ -46,15 +46,15 @@ class GoodweInverterInformation(object):
 
 
 	def __init__(self):
-		self.serialNumber = [17]	#serial number (ascii) from inverter with zero appended
+		self.serialNumber = [17]		#serial number (ascii) from inverter with zero appended
 		self.serial = ""
-		self.address = 0		#address provided by this software
+		self.address = 0				#address provided by this software
 		self.addressConfirmed = False	#wether or not the address is confirmed by te inverter
-		self.lastSeen = 0		#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
-		self.isOnline = False		#is the inverter online (see above)
-		self.version = 0		#1 or 3 phase inverter
+		self.lastSeen = 0				#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
+		self.isOnline = False			#is the inverter online (see above)
+		self.version = 0				#1 or 3 phase inverter
 
-		#inverert info from inverter pdf. Updated by the inverter info command
+		#'Running Info List' : (Function Code : 0x81) 
 		self.vpv1 = 0.0
 		self.vpv2 = 0.0
 		self.ipv1 = 0.0
@@ -100,19 +100,18 @@ class GoodWeCommunicator(object):
 
 	BUFFERSIZE = 96
 	GOODWE_COMMS_ADDRESS = 0x80		#our address
-	INVERTER_COMMS_ADDRESS = 0x0B		#inverter address
-	PACKET_TIMEOUT = 500			#0.5 sec packet timeout
-	STATE_TIMEOUT = 5000			# 5 seconds timeout between states
+	INVERTER_COMMS_ADDRESS = 0x0B	#inverter address. We only have one inverter using USB.
+	STATE_TIMEOUT = 10000			#10 seconds timeout between states
 	OFFLINE_TIMEOUT = 30000			#30 seconds no data -> inverter offline
 	DISCOVERY_INTERVAL = 10000		#10 secs between discovery 
 	INFO_INTERVAL = 1000			#get inverter info every second
-	DEFAULT_RESETWAIT = 1			# default wait time in minutes
+	DEFAULT_RESETWAIT = 60			#default wait time in seconds
 
 
 	def __init__(self, logger):
 		self.log = logger
 		self.inputBuffer = [0] * self.BUFFERSIZE
-		self.lastReceived = 0 					#timeout detection
+		self.lastReceived = millis() 			#timeout detection
 		self.startPacketReceived = False		#start packet marker
 		self.lastReceivedByte = 0				#packet start consist of 2 bytes to test. This holds the previous byte
 		self.curReceivePtr = 0					#the ptr in our OutputBuffer when reading
@@ -133,9 +132,9 @@ class GoodWeCommunicator(object):
 	
 	
 	def resetWait(self):
-		self.log.debug('Wait %s minutes before next device poll', (self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT)
+		self.log.debug('Wait %s minutes before next device poll', (self.lastWaitTime * self.lastWaitTime))
 		time.sleep((self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT)
-		if (self.lastWaitTime < 4): # max of 16 minutes wait
+		if (self.lastWaitTime < 4): # max of 25 minutes wait
 			self.lastWaitTime += 1
 	
 	
@@ -151,6 +150,12 @@ class GoodWeCommunicator(object):
 		
 		self.log.info('Found GoodWe Inverter at %s', self.rawdevice)
 		self.lastWaitTime = 0
+		
+		self.lastReceived = millis()
+		self.startPacketReceived = False
+		self.curReceivePtr = 0
+		self.numToRead = 0
+		self.lastReceivedByte = 0x00
 		
 		if self.openDevice():
 			self.setState(State.CONNECTED)
@@ -230,22 +235,25 @@ class GoodWeCommunicator(object):
 		buffer.append(high)
 		buffer.append(low)
 
+		# First 3 bytes are the header bytes and length of the full USB packet.
 		fullBuffer = bytearray([0xCC, 0x99, len(buffer)])
 		fullBuffer.extend(buffer)
 
 		self.log.debug("Sending data to inverter: %s", " ".join(hex(b) for b in fullBuffer))
 		
 		self.device.sendOutputReport(bytes(fullBuffer))
-		return len(buffer) #header, data, crc
+		return len(fullBuffer) #USBHeader, USBlength, header, data, crc
 
 
 	def checkIncomingData(self):
 		try:
-			datstr = self.devfp.read(64)
+			datstr = self.devfp.read(8)
 
 			for data in datstr:
 				incomingData = ord(data)
-				if not self.startPacketReceived and (self.lastReceivedByte == 0xAA and incomingData == 0x55):
+				# continuously check for GoodWe HEADER packets.
+				# Some types of Inverters send out garbage all the time. The header packet is the only true marker for a meaningfull command following.
+				if self.lastReceivedByte == 0xAA and incomingData == 0x55:
 					#packet start received
 					self.startPacketReceived = True
 					self.curReceivePtr = 0
@@ -270,24 +278,17 @@ class GoodWeCommunicator(object):
 						self.startPacketReceived = False
 						self.parseIncomingData(self.curReceivePtr)
 
-				elif not self.startPacketReceived:
-					self.lastReceivedByte = incomingData #keep track of the last incoming byte so we detect the packet start
+				self.lastReceivedByte = incomingData #keep track of the last incoming byte so we detect the packet start
 
 			self.lastReceived = millis()
 		except IOError as e:
-			if self.startPacketReceived and millis() - self.lastReceived > self.PACKET_TIMEOUT:
-				#there is an open packet timeout. 
-				self.startPacketReceived = False #wait for start packet again
-				self.log.debug("Comms timeout.")
-
+			pass
 
 	def parseIncomingData(self, incomingDataLength):
 		#first check the crc
 		#Data always start without the start bytes of 0xAA 0x55
 		#incomingDataLength also has the crc data in it
 		
-		self.log.debug('Parse data (%s) %s %s %s: ', hex(incomingDataLength), hex(0xAA), hex(0x55), " ".join(hex(b) for b in self.inputBuffer[0:incomingDataLength]))
- 
 		crc = 0xAA + 0x55
 		for cnt in range(0, incomingDataLength - 2):
 			crc += self.inputBuffer[cnt]
@@ -298,15 +299,25 @@ class GoodWeCommunicator(object):
 		#match the crc
 		if not (high == self.inputBuffer[incomingDataLength - 2] and low == self.inputBuffer[incomingDataLength - 1]):
 			return
-		self.log.debug("CRC match")
+		
+		src = self.inputBuffer[0]
+		dst = self.inputBuffer[1]
+		cc = self.inputBuffer[2]
+		fc = self.inputBuffer[3]
+		len = self.inputBuffer[4]
+		data = self.inputBuffer[5:]
+
+		self.log.debug('|0xAA 0x55|%s|%s|%s|%s|%s|%s|OK|', hex(src),hex(dst),hex(cc),hex(fc),hex(len),' '.join(hex(b) for b in data[0:len]))
  
 		#check the control code and function code to see what to do
-		if self.inputBuffer[2] == 0x00 and self.inputBuffer[3] == 0x80:
-			self.handleRegistration(self.inputBuffer[5:], 16)
-		elif self.inputBuffer[2] == 0x00 and self.inputBuffer[3] == 0x81:
-			self.handleRegistrationConfirmation(self.inputBuffer[0])
-		elif self.inputBuffer[2] == 0x01 and self.inputBuffer[3] == 0x81:
-			self.handleIncomingInformation(self.inputBuffer[0], self.inputBuffer[4], self.inputBuffer[5:])
+		if cc == 0x00 and fc == 0x82:
+			self.log.debug("Confirm remove device")
+		elif cc == 0x00 and fc == 0x80:
+			self.handleRegistration(data, 16)
+		elif cc == 0x00 and fc == 0x81:
+			self.handleRegistrationConfirmation(src)
+		elif cc == 0x01 and fc == 0x81:
+			self.handleIncomingInformation(src, len, data)
 
 
 	def handleRegistration(self, serialNumber, length):
@@ -441,6 +452,9 @@ class GoodWeCommunicator(object):
 		self.inverter.eDay = self.bytesToFloat(data[dtPtr:], 10)
 
 		#isonline is set after first batch of data is set so readers get actual data
+		if not self.inverter.isOnline:
+			self.log.info('Inverter now online.')
+			
 		self.inverter.isOnline = True
 
 		 
@@ -489,7 +503,7 @@ class GoodWeCommunicator(object):
 			if self.state == State.RUNNING:
 				self.statetime = millis()
 			else:
-				self.log.info("State machine time-out. Last state: %s", self.state)
+				self.log.debug("State machine time-out. Last state: %s", self.state)
 				self.state = State.OFFLINE
 	
 		if self.state == State.OFFLINE:
@@ -498,6 +512,7 @@ class GoodWeCommunicator(object):
 		elif self.state == State.CONNECTED:
 			self.sendRemoveRegistration()
 			self.setState(State.DISCOVER)
+			time.sleep(1)
 		
 		else:
 			self.checkIncomingData()
