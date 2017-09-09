@@ -1,9 +1,10 @@
-from __future__ import print_function
 from enum import Enum
 
 import time
+from pyudev import Devices, Context, Monitor, MonitorObserver
 import hidrawpure as hidraw
 import os, fcntl
+import logging
 
 millis = lambda: int(round(time.time() * 1000))
 
@@ -87,12 +88,13 @@ class GoodweInverterInformation(object):
 
 
 class State(Enum):
-	START = 1
-	DISCOVER = 2
-	ALLOC = 3
-	ALLOC_WAIT_CONFIRM = 4
-	ALLOC_ASK_INFO = 5
-	RUNNING = 6
+	OFFLINE = 1
+	CONNECTED = 2
+	DISCOVER = 3
+	ALLOC = 4
+	ALLOC_WAIT_CONFIRM = 5
+	ALLOC_ASK_INFO = 6
+	RUNNING = 7
 		
 class GoodWeCommunicator(object):
 
@@ -103,10 +105,11 @@ class GoodWeCommunicator(object):
 	OFFLINE_TIMEOUT = 30000			#30 seconds no data -> inverter offline
 	DISCOVERY_INTERVAL = 10000		#10 secs between discovery 
 	INFO_INTERVAL = 1000			#get inverter info every second
+	DEFAULT_RESETWAIT = 1			# default wait time in minutes
 
 
-	def __init__(self, device, inDebug):
-		self.debugMode = inDebug
+	def __init__(self, logger):
+		self.log = logger
 		self.inputBuffer = [0] * self.BUFFERSIZE
 		self.lastReceived = 0 					#timeout detection
 		self.startPacketReceived = False		#start packet marker
@@ -117,20 +120,55 @@ class GoodWeCommunicator(object):
 		self.lastDiscoverySent = 0				#discovery needs to be sent every 10 secs. 
 		self.lastInfoUpdateSent = 0				#last info update sent to the registered inverters
 
-		self.state = State.START
+		self.state = State.OFFLINE
 
 		self.inverter = GoodweInverterInformation()
-		self.rawdevice = device
+		self.rawdevice = None
 		self.devfp = None
 		self.device = None
+	
+		self.lastWaitTime = 0
+	
+	
+	def resetWait(self):
+		self.log.debug('Wait %s minutes before next device poll', (self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT)
+		time.sleep((self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT)
+		if (self.lastWaitTime < 4): # max of 16 minutes wait
+			self.lastWaitTime += 1
+	
+	
+	def resetUSBDevice(self):
+		self.closeDevice()
 		
+		self.resetWait()
 		
-	def setDevice(rawdevice):
-		# New device setted. Restart state machine.
-		self.rawdevice = rawdevice
-		self.state = State.START
+		self.rawdevice = self.findGoodWeUSBDevice('0084', '0041')
+		if self.rawdevice is None:
+			self.log.info('No GoodWe Inverter found.')
+			return
 		
+		self.log.info('Found GoodWe Inverter at %s', self.rawdevice)
+		self.lastWaitTime = 0
+		
+		if self.openDevice():
+			self.state = State.CONNECTED
+	
+	
+	def findGoodWeUSBDevice(self, vendorId, modelId):
+		context = Context()
+		
+		usb_list = [d for d in os.listdir("/dev") if d.startswith("hidraw")]
+		for hidraw in usb_list:
+			device = "/dev/" + hidraw
 
+			udev = Devices.from_device_file(context, device)
+			
+			if udev['DEVPATH'].find(vendorId + ":" + modelId) > -1:
+				return device
+		
+		return None
+	
+	
 	def openDevice(self):
 		try:
 			#open in non-blocking mode
@@ -141,22 +179,24 @@ class GoodWeCommunicator(object):
 		
 			self.device = hidraw.HIDRaw(self.devfp)
 
-			print ("Connected to " + self.rawdevice)
+			self.log.info ("Connected to %s", self.rawdevice)
 			
 			return True
 		except Exception as e:
-			print("Unable to open " + self.rawdevice)
+			self.log.error("Unable to open %s", self.rawdevice)
 			return False
 			
 
 	def closeDevice(self):
 		self.device = None
-		try:
-			close(self.devfp)
-			self.devfp = None
-		except Exception as e:
-			if self.debugMode:
-				print("Unable to close device")
+		if not self.devfp is None:
+			try:
+				self.devfp.close()
+			except Exception as e:
+				self.log.debug("Unable to close device: %s", e)
+
+		self.devfp = None
+		self.rawdevice = None
 
 
 	def sendRemoveRegistration(self):
@@ -187,28 +227,13 @@ class GoodWeCommunicator(object):
 		fullBuffer = bytearray([0xCC, 0x99, len(buffer)])
 		fullBuffer.extend(buffer)
 
-		if self.debugMode:
-			print("Sending data to inverter(s): ", end='')
-			for cnt in range(len(fullBuffer)):
-				self.debugPrintHex(fullBuffer[cnt])
-			print("CRC high/low: ", end='')
-			self.debugPrintHex(high)
-			self.debugPrintHex(low)
-			print(".")
-
+		self.log.debug("Sending data to inverter: %s", " ".join(hex(b) for b in fullBuffer))
+		
 		self.device.sendOutputReport(bytes(fullBuffer))
 		return len(buffer) #header, data, crc
 
 
-	def debugPrintHex(self, bt):
-		print(hex(bt), end='')
-		print(" ", end='')
-
-
 	def checkIncomingData(self):
-		if self.devfp is None:
-			return
-			
 		try:
 			datstr = self.devfp.read(64)
 
@@ -247,23 +272,15 @@ class GoodWeCommunicator(object):
 			if self.startPacketReceived and millis() - self.lastReceived > self.PACKET_TIMEOUT:
 				#there is an open packet timeout. 
 				self.startPacketReceived = False #wait for start packet again
-				if self.debugMode:
-					print("Comms timeout.")
+				self.log.debug("Comms timeout.")
 
 
 	def parseIncomingData(self, incomingDataLength):
 		#first check the crc
 		#Data always start without the start bytes of 0xAA 0x55
 		#incomingDataLength also has the crc data in it
-#		if self.debugMode:
-#			print("Parsing incoming data with length: ", end='')
-#			self.debugPrintHex(incomingDataLength)
-#			print(". ", end='')
-#			self.debugPrintHex(0xAA)
-#			self.debugPrintHex(0x55)
-#			for cnt in range(0, incomingDataLength):
-#				self.debugPrintHex(self.inputBuffer[cnt])
-#			print(".", end='')
+		
+		self.log.debug('Parse data (%s) %s %s %s: ', hex(incomingDataLength), hex(0xAA), hex(0x55), " ".join(hex(b) for b in self.inputBuffer[0:incomingDataLength]))
  
 		crc = 0xAA + 0x55
 		for cnt in range(0, incomingDataLength - 2):
@@ -272,20 +289,10 @@ class GoodWeCommunicator(object):
 		high = (crc >> 8) & 0xff
 		low = crc & 0xff
  
-#		if self.debugMode:
-#			print("CRC received: ", end='')
-#			self.debugPrintHex(self.inputBuffer[incomingDataLength - 2])
-#			self.debugPrintHex(self.inputBuffer[incomingDataLength - 1])
-#			print(", CRC: ", end='')
-#			self.debugPrintHex(high)
-#			self.debugPrintHex(low)
-#			print(".")
- 
 		#match the crc
 		if not (high == self.inputBuffer[incomingDataLength - 2] and low == self.inputBuffer[incomingDataLength - 1]):
 			return
-		if self.debugMode:
-			print("CRC match.")
+		self.log.debug("CRC match")
  
 		#check the control code and function code to see what to do
 		if self.inputBuffer[2] == 0x00 and self.inputBuffer[3] == 0x80:
@@ -302,8 +309,7 @@ class GoodWeCommunicator(object):
 			return
  
 		if self.inverter.serialNumber == serialNumber[0:16]:
-			print("Already registered inverter reregistered with address: ", end='')
-			print(self.inverter.address)
+			self.log.info("Already registered inverter reregistered with address: %s", self.inverter.address)
 			#Set to unconfirmed and send out the existing address to the inverter
 			self.inverter.addressConfirmed = False
 			self.inverter.lastSeen = millis()
@@ -317,16 +323,13 @@ class GoodWeCommunicator(object):
 		self.inverter.serialNumber = serialNumber[0:16]
 		self.inverter.serial = "".join(map(chr, serialNumber[0:16]))
 		self.inverter.address = self.INVERTER_COMMS_ADDRESS
-		if self.debugMode:
-			print("New inverter found")
+		self.log.info("New inverter found")
  
 		self.state = State.ALLOC
  
 		 
 	def sendAllocateRegisterAddress(self, serialNumber, address):
-		if self.debugMode:
-			print("SendAllocateRegisterAddress address: ", end='')
-			print(address)
+		self.log.debug("SendAllocateRegisterAddress address: %s", address)
  
 		#create our registrationpacket with serialnumber and address and send it over
 		registerData = bytearray()
@@ -339,30 +342,24 @@ class GoodWeCommunicator(object):
  
 
 	def handleRegistrationConfirmation(self, address):
-		if self.debugMode:
-			print("Handling registration information for address: ", end='')
-			print(address)
+		self.log.debug("Handling registration information for address: %s", address)
  
 		#lookup the inverter and set it to confirmed
 		if self.inverter.address == address:
-			if self.debugMode:
-				print("Inverter information found .", end='')
+			self.log.debug("Confirmed address: %s", address)
 			self.inverter.addressConfirmed = True
 			self.inverter.isOnline = False #inverter is online, we first need to get its information
 			self.inverter.lastSeen = millis()
  
+			#get the information straight away
+			self.state = State.ALLOC_ASK_INFO
 		else:
-			if self.debugMode:
-				print("Error. Could not find the inverter with address: ", end='')
-				print(address)
- 
-		#get the information straight away
-		self.state = State.ALLOC_ASK_INFO
+			self.log.debug("Error. Could not find the inverter with address: %s", address)
+			self.state = State.OFFLINE
 
 
 	def handleIncomingInformation(self, address, dataLength, data):
-		if self.debugMode:
-			print("Handle incoming information")
+		self.log.debug("Handle incoming information")
 		#need to parse the information and update our struct
 		#parse all pairs of two bytes and output them
 		if dataLength < 44: #minimum for non dt series
@@ -463,8 +460,7 @@ class GoodWeCommunicator(object):
 	def sendDiscovery(self):
 		if not self.inverter.isOnline:
 			#send out discovery for unregistered devices.
-			if self.debugMode:
-				print("Sending discovery")
+			self.log.debug("Sending discovery")
 			self.sendData(0x7F, 0x00, 0x00, 0x00)
 
 
@@ -475,12 +471,8 @@ class GoodWeCommunicator(object):
 
 			#check if inverter timed out
 			if not newOnline and self.inverter.isOnline:
-				if self.debugMode:
-					print("Marking inverter @ address: ", end='')
-					print(self.inverter.address)
-					print("offline.")
-
-				self.state = State.START
+				self.log.debug("Marking inverter @ address %s offline", self.inverter.address)
+				self.state = State.OFFLINE
 
 			self.inverter.isOnline = newOnline
 
@@ -490,47 +482,41 @@ class GoodWeCommunicator(object):
 			self.sendData(self.inverter.address, 0x01, 0x01, 0)
 			self.state = State.RUNNING
 		else:
-			if self.debugMode:
-				print("Not asking inverter with address: ", end='')
-				print(self.inverter.address, end='')
-				print(" for information. Addressconfirmed: ", end='')
-				print(self.inverter.addressConfirmed, end='')
-				print(", isOnline: ", end='')
-				print(self.inverter.isOnline, end='')
-				print(".")
+			self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
 
 
 	def handle(self):
-		#always check for incoming data
-		self.checkIncomingData()
+		if self.state == State.OFFLINE:
+			self.resetUSBDevice()
 		
-		if self.state == State.START:
+		elif self.state == State.CONNECTED:
 			self.sendRemoveRegistration()
-			self.closeDevice()
 			self.state = State.DISCOVER
-			self.openDevice()
 		
-		elif self.state == State.DISCOVER:
-			if millis() - self.lastDiscoverySent >= self.DISCOVERY_INTERVAL:
-				self.sendDiscovery()
-				self.lastDiscoverySent = millis()
+		else:
+			self.checkIncomingData()
 		
-		elif self.state == State.ALLOC:
-			self.sendAllocateRegisterAddress(self.inverter.serialNumber, self.inverter.address)
- 
-		elif self.state == State.ALLOC_ASK_INFO:
-			self.askInverterForInformation(True)
+			if self.state == State.DISCOVER:
+				if millis() - self.lastDiscoverySent >= self.DISCOVERY_INTERVAL:
+					self.sendDiscovery()
+					self.lastDiscoverySent = millis()
 			
-		elif self.state == State.RUNNING:
-			#ask for info update every second
-			if millis() - self.lastInfoUpdateSent >= 1000:
-				self.askInverterForInformation()
-				self.lastInfoUpdateSent = millis()
-			
-			#check response timeout
-			self.checkOfflineInverter()
+			elif self.state == State.ALLOC:
+				self.sendAllocateRegisterAddress(self.inverter.serialNumber, self.inverter.address)
+	 
+			elif self.state == State.ALLOC_ASK_INFO:
+				self.askInverterForInformation(True)
+				
+			elif self.state == State.RUNNING:
+				#ask for info update every second
+				if millis() - self.lastInfoUpdateSent >= 1000:
+					self.askInverterForInformation()
+					self.lastInfoUpdateSent = millis()
+				
+				#check response timeout
+				self.checkOfflineInverter()
 
-		self.checkIncomingData()
+			self.checkIncomingData()
 
 
 	def getInverter(self):
