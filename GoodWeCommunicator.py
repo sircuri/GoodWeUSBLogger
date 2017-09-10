@@ -95,7 +95,31 @@ class State(Enum):
 	ALLOC_WAIT_CONFIRM = 5
 	ALLOC_ASK_INFO = 6
 	RUNNING = 7
-		
+
+# REGISTER CONTROL CODES
+CC_REG 		= 0x00
+
+# REGISTER FUNCTION CODES
+FC_OFFLINE 	= 0x00
+FC_REGREQ 	= 0x80
+FC_ALLOCREG = 0x01
+FC_ADDCONF 	= 0x81
+FC_REMREG 	= 0x02
+FC_REMCONF 	= 0x82
+
+# READ CONTROL CODES
+CC_READ 	= 0x01
+
+# READ FUNCTION CODES
+FC_QRYRUN 	= 0x01
+FC_RESRUN 	= 0x81
+FC_QRYID 	= 0x02
+FC_RESID 	= 0x82
+FC_QRYSTT 	= 0x03
+FC_RESSTT 	= 0x83
+
+NODATA 		= 0x00
+	
 class GoodWeCommunicator(object):
 
 	BUFFERSIZE = 96
@@ -212,7 +236,7 @@ class GoodWeCommunicator(object):
 
 	def sendRemoveRegistration(self):
 		#send out the remove address to the inverter. If the inverter is still connected it will reconnect after discovery
-		self.sendData(self.INVERTER_COMMS_ADDRESS, 0x00, 0x02, 0)
+		self.sendData(self.INVERTER_COMMS_ADDRESS, CC_REG, FC_REMREG, NODATA)
 
 
 	def sendData(self, address, controlCode, functionCode, dataLength, data = None):
@@ -310,13 +334,13 @@ class GoodWeCommunicator(object):
 		self.log.debug('|0xAA 0x55|%s|%s|%s|%s|%s|%s|OK|', hex(src),hex(dst),hex(cc),hex(fc),hex(len),' '.join(hex(b) for b in data[0:len]))
  
 		#check the control code and function code to see what to do
-		if cc == 0x00 and fc == 0x82:
+		if cc == CC_REG and fc == FC_REMCONF:
 			self.log.debug("Confirm remove device")
-		elif cc == 0x00 and fc == 0x80:
+		elif cc == CC_REG and fc == FC_REGREQ:
 			self.handleRegistration(data, 16)
-		elif cc == 0x00 and fc == 0x81:
+		elif cc == CC_REG and fc == FC_ADDCONF:
 			self.handleRegistrationConfirmation(src)
-		elif cc == 0x01 and fc == 0x81:
+		elif cc == CC_READ and fc == FC_RESRUN:
 			self.handleIncomingInformation(src, len, data)
 
 
@@ -344,7 +368,7 @@ class GoodWeCommunicator(object):
 		registerData.extend(serialNumber[0:16])
 		registerData.append(address)
 		#need to send alloc msg
-		self.sendData(0x7F, 0x00, 0x01, 17, registerData)
+		self.sendData(0x7F, CC_REG, FC_ALLOCREG, 17, registerData)
 		
 		self.setState(State.ALLOC_WAIT_CONFIRM)
  
@@ -472,7 +496,7 @@ class GoodWeCommunicator(object):
 		if not self.inverter.isOnline:
 			#send out discovery for unregistered devices.
 			self.log.debug("Sending discovery")
-			self.sendData(0x7F, 0x00, 0x00, 0x00)
+			self.sendData(0x7F, CC_REG, FC_OFFLINE, NODATA)
 
 
 	def checkOfflineInverter(self):
@@ -486,11 +510,13 @@ class GoodWeCommunicator(object):
 				self.setState(State.OFFLINE)
 
 			self.inverter.isOnline = newOnline
+		else:
+			self.setState(State.OFFLINE)
 
 
 	def askInverterForInformation(self, force = False):
 		if force or (self.inverter.addressConfirmed and self.inverter.isOnline):
-			self.sendData(self.inverter.address, 0x01, 0x01, 0)
+			self.sendData(self.inverter.address, CC_READ, FC_QRYRUN, NODATA)
 			self.setState(State.RUNNING)
 		else:
 			self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
