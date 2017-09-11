@@ -368,7 +368,7 @@ class GoodWeCommunicator(object):
 		registerData.extend(serialNumber[0:16])
 		registerData.append(address)
 		#need to send alloc msg
-		self.sendData(0x7F, CC_REG, FC_ALLOCREG, 17, registerData)
+		self.sendData(0x7F, CC_REG, FC_ALLOCREG, len(registerData), registerData)
 		
 		self.setState(State.ALLOC_WAIT_CONFIRM)
  
@@ -380,7 +380,7 @@ class GoodWeCommunicator(object):
 		if self.inverter.address == address:
 			self.log.debug("Confirmed address: %s", address)
 			self.inverter.addressConfirmed = True
-			self.inverter.isOnline = False #inverter is online, we first need to get its information
+			self.inverter.isOnline = True #inverter is online, we first need to get its information
 			self.inverter.lastSeen = millis()
  
 			#get the information straight away
