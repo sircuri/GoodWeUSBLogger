@@ -169,10 +169,10 @@ class GoodWeCommunicator(object):
 		
 		self.rawdevice = self.findGoodWeUSBDevice('0084', '0041')
 		if self.rawdevice is None:
-			self.log.info('No GoodWe Inverter found.')
+			self.log.error('No GoodWe Inverter found.')
 			return
 		
-		self.log.info('Found GoodWe Inverter at %s', self.rawdevice)
+		self.log.debug('Found GoodWe Inverter at %s', self.rawdevice)
 		self.lastWaitTime = 0
 		
 		self.lastReceived = millis()
@@ -210,7 +210,7 @@ class GoodWeCommunicator(object):
 		
 			self.device = hidraw.HIDRaw(self.devfp)
 
-			self.log.info ("Connected to %s", self.rawdevice)
+			self.log.debug ("Connected to %s", self.rawdevice)
 			
 			return True
 		except Exception as e:
@@ -355,7 +355,7 @@ class GoodWeCommunicator(object):
 		self.inverter.serialNumber = serialNumber[0:16]
 		self.inverter.serial = "".join(map(chr, serialNumber[0:16]))
 		self.inverter.address = self.INVERTER_COMMS_ADDRESS
-		self.log.info("Inverter found")
+		self.log.info("New inverter found. Register address.")
  
 		self.setState(State.ALLOC)
  
@@ -382,11 +382,13 @@ class GoodWeCommunicator(object):
 			self.inverter.addressConfirmed = True
 			self.inverter.isOnline = True #inverter is online, we first need to get its information
 			self.inverter.lastSeen = millis()
+
+			self.log.info('Inverter now online.')
  
 			#get the information straight away
 			self.setState(State.ALLOC_ASK_INFO)
 		else:
-			self.log.debug("Error. Could not find the inverter with address: %s", address)
+			self.log.error("Could not find the inverter with address: %s", address)
 			self.setState(State.OFFLINE)
 
 
@@ -475,10 +477,6 @@ class GoodWeCommunicator(object):
 		dtPtr += 2
 		self.inverter.eDay = self.bytesToFloat(data[dtPtr:], 10)
 
-		#isonline is set after first batch of data is set so readers get actual data
-		if not self.inverter.isOnline:
-			self.log.info('Inverter now online.')
-			
 		self.inverter.isOnline = True
 
 		 
