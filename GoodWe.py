@@ -65,7 +65,7 @@ class MyDaemon(Daemon):
 
 						if inverter.isOnline:
 							logging.debug('Publishing telegram to MQTT')
-							datagram = json.dumps(inverter.__dict__)
+							datagram = inverter.toJSON() # json.dumps(inverter.__dict__)
 							client.publish(combinedtopic + '/data', datagram)
 							client.publish(combinedtopic + '/online', 1)
 						else:
