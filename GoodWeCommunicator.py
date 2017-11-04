@@ -2,13 +2,48 @@ from enum import Enum
 
 import time
 from pyudev import Devices, Context, Monitor, MonitorObserver
+import datetime
 import hidrawpure as hidraw
 import os, fcntl
 import logging
+import json
 
 millis = lambda: int(round(time.time() * 1000))
 
-class GoodweInverterInformation(object):
+class IDInfo(object):
+
+	def __init__(self):
+		self.function = FC_RESID		# Function 0x82
+
+		self.firmwareVersion = ""
+		self.modelName = ""
+		self.manufacturer = ""
+		self.serialNumber = ""
+		self.nominalVpv = 0
+		self.internalVersion = ""
+		self.safetyCountryCode = 0x0
+		
+	def toJSON(self):
+		return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+		
+
+class SettingInfo(object):
+
+	def __init__(self):
+		self.function = FC_RESSTT		# Function 0x83
+		
+		self.vpvStart = 0x0
+		self.tStart = 0x0
+		self.vacMin = 0x0
+		self.vacMax = 0x0
+		self.facMin = 0x0
+		self.facMax = 0x0
+		
+	def toJSON(self):
+		return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+
+	
+class RunningInfo(object):
 
 	ERRORS = []
 	ERRORS.append("GFCI Device Failure")
@@ -46,15 +81,9 @@ class GoodweInverterInformation(object):
 
 
 	def __init__(self):
-		self.serialNumber = [17]		#serial number (ascii) from inverter with zero appended
-		self.serial = ""
-		self.address = 0				#address provided by this software
-		self.addressConfirmed = False	#wether or not the address is confirmed by te inverter
-		self.lastSeen = 0				#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
-		self.isOnline = False			#is the inverter online (see above)
-		self.version = 0				#1 or 3 phase inverter
+		self.function = FC_RESRUN		# Function 0x81 'Running Info List'
 
-		#'Running Info List' : (Function Code : 0x81) 
+		self.timestamp = "";
 		self.vpv1 = 0.0
 		self.vpv2 = 0.0
 		self.ipv1 = 0.0
@@ -85,7 +114,28 @@ class GoodweInverterInformation(object):
 		self.line3FFault = 0.0
 		self.gcfiFault = 0
 		self.eDay = 0.0
+		
+	def toJSON(self):
+		return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
 
+		
+class Inverter(object):
+	
+	def __init__(self):
+		self.serialNumber = [17]				#serial number (ascii) from inverter with zero appended
+		self.serial = ""						# serial number as string
+		self.address = 0						#address provided by this software
+		self.addressConfirmed = False			#wether or not the address is confirmed by te inverter
+		self.lastSeen = 0						#when was the inverter last seen? If not seen for 30 seconds the inverter is marked offline. 
+		self.isOnline = False					#is the inverter online (see above)
+		self.inverterType = InverterType.SINGLEPHASE	#1 or 3 phase inverter
+		self.runningInfo = RunningInfo()
+		self.idInfo = IDInfo()
+		self.settingInfo = SettingInfo()
+		
+	def toJSON(self):
+		return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+		
 
 class State(Enum):
 	OFFLINE = 1
@@ -94,8 +144,14 @@ class State(Enum):
 	ALLOC = 4
 	ALLOC_WAIT_CONFIRM = 5
 	ALLOC_ASK_INFO = 6
-	RUNNING = 7
+	ALLOC_ASK_ID = 7
+	ALLOC_ASK_SETTING = 8
+	RUNNING = 9
 
+class InverterType(Enum):
+	SINGLEPHASE = 1
+	THREEPHASE = 3
+	
 # REGISTER CONTROL CODES
 CC_REG 		= 0x00
 
@@ -147,7 +203,7 @@ class GoodWeCommunicator(object):
 		self.state = State.OFFLINE
 		self.statetime = millis()
 
-		self.inverter = GoodweInverterInformation()
+		self.inverter = Inverter()
 		self.rawdevice = None
 		self.devfp = None
 		self.device = None
@@ -180,6 +236,9 @@ class GoodWeCommunicator(object):
 		self.curReceivePtr = 0
 		self.numToRead = 0
 		self.lastReceivedByte = 0x00
+		self.inverter.runningInfo = RunningInfo()
+		self.inverter.idInfo = IDInfo()
+		self.inverter.settingInfo = SettingInfo()
 		
 		if self.openDevice():
 			self.setState(State.CONNECTED)
@@ -342,6 +401,10 @@ class GoodWeCommunicator(object):
 			self.handleRegistrationConfirmation(src)
 		elif cc == CC_READ and fc == FC_RESRUN:
 			self.handleIncomingInformation(src, len, data)
+		elif cc == CC_READ and fc == FC_RESID:
+			self.handleIncomingID(src, len, data)
+		elif cc == CC_READ and fc == FC_RESSTT:
+			self.handleIncomingSetting(src, len, data)
 
 
 	def handleRegistration(self, serialNumber, length):
@@ -394,90 +457,93 @@ class GoodWeCommunicator(object):
 
 	def handleIncomingInformation(self, address, dataLength, data):
 		self.log.debug("Handle incoming information")
-		#need to parse the information and update our struct
-		#parse all pairs of two bytes and output them
-		if dataLength < 44: #minimum for non dt series
+		if dataLength < 44:
 			return
 
-		#data from inverter, online
-		self.inverter.lastSeen = millis()
+		runningInfo = RunningInfo()
+		inverterType = InverterType.SINGLEPHASE
+			
 		if dataLength == 66:
-			self.inverter.version = 3
-		else:
-			self.inverter.version = 1
+			inverterType = InverterType.THREEPHASE
+
+		runningInfo.timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 		dtPtr = 0
-		self.inverter.vpv1 = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.vpv1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.vpv2 = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.vpv2 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.ipv1 = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.ipv1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.ipv2 = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.ipv2 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.vac1 = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.vac1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		if self.inverter.version == 3:
-			self.inverter.vac2 = self.bytesToFloat(data[dtPtr:], 10)
+		if inverterType == InverterType.THREEPHASE:
+			runningInfo.vac2 = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
-			self.inverter.vac3 = self.bytesToFloat(data[dtPtr:], 10)
-			dtPtr += 2
- 
-		self.inverter.iac1 = self.bytesToFloat(data[dtPtr:], 10)
-		dtPtr += 2
-		if self.inverter.version == 3:
-			self.inverter.iac2 = self.bytesToFloat(data[dtPtr:], 10)
-			dtPtr += 2
-			self.inverter.iac3 = self.bytesToFloat(data[dtPtr:], 10)
+			runningInfo.vac3 = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
  
-		self.inverter.fac1 = self.bytesToFloat(data[dtPtr:], 100)
+		runningInfo.iac1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		if self.inverter.version == 3:
-			self.inverter.fac2 = self.bytesToFloat(data[dtPtr:], 100)
+		if inverterType == InverterType.THREEPHASE:
+			runningInfo.iac2 = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
-			self.inverter.fac3 = self.bytesToFloat(data[dtPtr:], 100)
+			runningInfo.iac3 = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
  
-		self.inverter.pac = (data[dtPtr] << 8) | (data[dtPtr + 1])
+		runningInfo.fac1 = self.bytesToFloat(data[dtPtr:], 100)
 		dtPtr += 2
-		self.inverter.workMode = (data[dtPtr] << 8) | (data[dtPtr + 1])
+		if inverterType == InverterType.THREEPHASE:
+			runningInfo.fac2 = self.bytesToFloat(data[dtPtr:], 100)
+			dtPtr += 2
+			runningInfo.fac3 = self.bytesToFloat(data[dtPtr:], 100)
+			dtPtr += 2
+ 
+		runningInfo.pac = (data[dtPtr] << 8) | (data[dtPtr + 1])
 		dtPtr += 2
-		self.inverter.temp = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.workMode = (data[dtPtr] << 8) | (data[dtPtr + 1])
+		dtPtr += 2
+		runningInfo.temp = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
 		errorMessage = (data[dtPtr] << 24) | (data[dtPtr + 1] << 16) | (data[dtPtr + 2] << 8) | (data[dtPtr + 3])
-		self.inverter.errorMessage = [i for i, x in enumerate(reversed(bin(errorMessage))) if x == "1"]
+		runningInfo.errorMessage = [i for i, x in enumerate(reversed(bin(errorMessage))) if x == "1"]
 		dtPtr += 4
-		self.inverter.eTotal = self.bytes4ToFloat(data[dtPtr:], 10)
+		runningInfo.eTotal = self.bytes4ToFloat(data[dtPtr:], 10)
 		dtPtr += 4
-		self.inverter.hTotal = (data[dtPtr] << 24) | (data[dtPtr + 1] << 16) | (data[dtPtr + 2] << 8) | (data[dtPtr + 3])
+		runningInfo.hTotal = (data[dtPtr] << 24) | (data[dtPtr + 1] << 16) | (data[dtPtr + 2] << 8) | (data[dtPtr + 3])
 		dtPtr += 4
-		self.inverter.tempFault = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.tempFault = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.pv1Fault = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.pv1Fault = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.pv2Fault = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.pv2Fault = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		self.inverter.line1VFault = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.line1VFault = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2
-		if self.inverter.version == 3:
-			self.inverter.line2VFault = self.bytesToFloat(data[dtPtr:], 10)
+		if inverterType == InverterType.THREEPHASE:
+			runningInfo.line2VFault = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
-			self.inverter.line3VFault = self.bytesToFloat(data[dtPtr:], 10)
+			runningInfo.line3VFault = self.bytesToFloat(data[dtPtr:], 10)
 			dtPtr += 2
 		
-		self.inverter.line1FFault = self.bytesToFloat(data[dtPtr:], 100)
+		runningInfo.line1FFault = self.bytesToFloat(data[dtPtr:], 100)
 		dtPtr += 2
-		if self.inverter.version == 3:
-			self.inverter.line2FFault = self.bytesToFloat(data[dtPtr:], 100)
+		if inverterType == InverterType.THREEPHASE:
+			runningInfo.line2FFault = self.bytesToFloat(data[dtPtr:], 100)
 			dtPtr += 2
-			self.inverter.line3FFault = self.bytesToFloat(data[dtPtr:], 100)
+			runningInfo.line3FFault = self.bytesToFloat(data[dtPtr:], 100)
 			dtPtr += 2
 
-		self.inverter.gcfiFault = (data[dtPtr] << 8) | (data[dtPtr + 1])
+		runningInfo.gcfiFault = (data[dtPtr] << 8) | (data[dtPtr + 1])
 		dtPtr += 2
-		self.inverter.eDay = self.bytesToFloat(data[dtPtr:], 10)
+		runningInfo.eDay = self.bytesToFloat(data[dtPtr:], 10)
 
+		self.inverter.lastSeen = millis()
 		self.inverter.isOnline = True
+		
+		self.inverter.inverterType = inverterType
+		self.inverter.runningInfo = runningInfo
 
 		 
 	def bytesToFloat(self, bt, factor):
@@ -489,7 +555,50 @@ class GoodWeCommunicator(object):
 		#convert four byte to float and then dividing it by factor
 		return float( (bt[0] << 24) | (bt[1] << 16) | (bt[2] << 8) | bt[3]) / factor
 
+		
+	def handleIncomingID(self, address, dataLength, data):
+		self.log.debug("Handle incoming ID")
+		
+		if dataLength != 64:
+			self.log.debug("Wrong package. Expected 64 bytes of data.")
+			return
+		
+		idInfo = IDInfo()
+		idInfo.firmwareVersion 		= "".join(map(chr, data[0:5]))
+		idInfo.modelName 			= "".join(map(chr, data[5:15]))
+		idInfo.manufacturer 		= "".join(map(chr, data[15:31]))
+		idInfo.serialNumber 		= "".join(map(chr, data[31:47]))
+		idInfo.nominalVpv 			= "".join(map(chr, data[47:51]))
+		idInfo.internalVersion 		= "".join(map(chr, data[51:63]))
+		idInfo.safetyCountryCode 	= data[63]
+	
+		self.inverter.idInfo = idInfo
 
+	
+	def handleIncomingSetting(self, address, dataLength, data):
+		self.log.debug("Handle incoming Setting")
+		
+		if dataLength != 12:
+			self.log.debug("Wrong package. Expected 12 bytes of data.")
+			return
+			
+		settingInfo = SettingInfo()	
+		dtPtr = 0
+		settingInfo.vpvStart = self.bytesToFloat(data[dtPtr:], 10)
+		dtPtr += 2
+		settingInfo.tStart = (data[dtPtr] << 8) | (data[dtPtr + 1])
+		dtPtr += 2
+		settingInfo.vacMin = self.bytesToFloat(data[dtPtr:], 10)
+		dtPtr += 2
+		settingInfo.vacMax = self.bytesToFloat(data[dtPtr:], 10)
+		dtPtr += 2
+		settingInfo.facMin = self.bytesToFloat(data[dtPtr:], 100)
+		dtPtr += 2
+		settingInfo.facMax = self.bytesToFloat(data[dtPtr:], 100)
+		
+		self.inverter.settingInfo = settingInfo
+
+		
 	def sendDiscovery(self):
 		if not self.inverter.isOnline:
 			#send out discovery for unregistered devices.
@@ -520,6 +629,22 @@ class GoodWeCommunicator(object):
 			self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
 
 
+	def askInverterForID(self):
+		if self.inverter.isOnline:
+			self.log.debug("askInverterForID")
+			self.sendData(self.inverter.address, CC_READ, FC_QRYID, NODATA)
+		else:
+			self.log.debug('Skip inverter %s for ID. Online = %s', self.inverter.address, self.inverter.isOnline)
+			
+
+	def askInverterForSetting(self):
+		if self.inverter.isOnline:
+			self.log.debug("askInverterForSetting")
+			self.sendData(self.inverter.address, CC_READ, FC_QRYSTT, NODATA)
+		else:
+			self.log.debug('Skip inverter %s for Settings. Online = %s', self.inverter.address, self.inverter.isOnline)
+			
+			
 	def handle(self):
 	
 		# check for state timeouts
@@ -552,9 +677,15 @@ class GoodWeCommunicator(object):
 			elif self.state == State.ALLOC_ASK_INFO:
 				self.askInverterForInformation(True)
 				
+			elif self.state == State.ALLOC_ASK_ID:
+				self.askInverterForID()
+				
+			elif self.state == State.ALLOC_ASK_SETTING:
+				self.askInverterForSetting()
+
 			elif self.state == State.RUNNING:
 				#ask for info update every second
-				if millis() - self.lastInfoUpdateSent >= 1000:
+				if millis() - self.lastInfoUpdateSent >= 3000:
 					self.askInverterForInformation()
 					self.lastInfoUpdateSent = millis()
 				
