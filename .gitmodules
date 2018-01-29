@@ -1,3 +1,3 @@
 [submodule "daemonpy"]
 	path = daemonpy
-	url = https://gitlab.vanefferenonline.nl/arjen/DaemonPy.git
+	url = ../../arjen/DaemonPy.git

@@ -1,0 +1,7 @@
+./.git
+./.gitignore
+./.gitmodules
+./.gitlab-ci.yml
+./.DS_Store
+./ci
+./build
