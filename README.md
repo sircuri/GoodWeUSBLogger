@@ -3,6 +3,9 @@ Python based logger for GoodWe inverters using USB.
 
 based on: https://github.com/jantenhove/GoodWeLogger
 
+## Todo ##
+[TODO List](GoodWeUSBLogger)
+
 ## Required modules
 
 * pyudev
