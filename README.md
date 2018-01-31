@@ -5,6 +5,7 @@ based on: https://github.com/jantenhove/GoodWeLogger
 
 ## Todo ##
 [TODO List](GoodWeUSBLogger)
+[[TODO List|GoodWeUSBLogger]]
 
 ## Required modules
 
