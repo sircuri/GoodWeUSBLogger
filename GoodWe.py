@@ -17,7 +17,7 @@ millis = lambda: int(round(time.time() * 1000))
 class MyDaemon(Daemon):
 	def run(self):
 		config = configparser.RawConfigParser()
-		config.read('/etc/goodwe/goodwe.conf')
+		config.read('/etc/goodwe.conf')
 		
 		mqttserver = config.get("mqtt", "server")
 		mqttport = config.get("mqtt", "port")
