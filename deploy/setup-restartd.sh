@@ -6,11 +6,9 @@ targetpath=$(get_octopusvariable "Application.Installation.Path")
 echo "Install Restartd daemon"
 # Prevent launch of servers during apt-get install
 sudo mkdir -p /usr/sbin/
-sudo cat < /usr/sbin/policy-rc.d
-#!/bin/sh
-exit 101
-EOF
+printf '%s\n%s\n' '#!/bin/bash' 'exit 101' | sudo tee -a /usr/sbin/policy-rc.d >/dev/null
 sudo chmod 755 /usr/sbin/policy-rc.d
+
 # Install daemon
 sudo apt-get update && sudo apt-get -y install restartd
 
