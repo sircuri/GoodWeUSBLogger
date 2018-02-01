@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # sudo apt-get update
-installpath=$(get_octopusvariable "Octopus.Action.Package.InstallationDirectoryPath")
+stepname=$(get_octopusvariable "Application.Installation.UploadStepName")
+installpath=$(get_octopusvariable "Octopus.Action[$stepname].Output.Package.InstallationDirectoryPath")
 targetpath=$(get_octopusvariable "Application.Installation.Path")
 
 echo "Create installation folder $targetpath"
