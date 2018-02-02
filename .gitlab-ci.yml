@@ -12,5 +12,5 @@ build:app:
   script:
   - 'mkdir build'
   - 'tar -cvzf ./build/GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz -X ci/exclude.tar ./'
-  - 'curl -X POST http://192.168.2.133/api/packages/raw?replace=true -H "X-Octopus-ApiKey: API-VLXQTLD5C45AQYCTDGAJUOAY3O" -F "file=@\"build/GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz\";filename=\"GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz\";type=application/zip"'
+  - 'curl -X POST http://192.168.2.210/api/packages/raw?replace=true -H "X-Octopus-ApiKey: API-VLXQTLD5C45AQYCTDGAJUOAY3O" -F "file=@\"build/GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz\";filename=\"GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz\";type=application/zip"'
 
