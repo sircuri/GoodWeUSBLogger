@@ -17,7 +17,7 @@ millis = lambda: int(round(time.time() * 1000))
 class MyDaemon(Daemon):
 	def run(self):
 		config = configparser.RawConfigParser()
-		config.read('/etc/goodwe/goodwe.conf')
+		config.read('/etc/goodwe.conf')
 		
 		mqttserver = config.get("mqtt", "server")
 		mqttport = config.get("mqtt", "port")
@@ -26,15 +26,14 @@ class MyDaemon(Daemon):
 		
 		loglevel = config.get("inverter", "loglevel")
 		interval = config.getint("inverter", "pollinterval")
+		
+		logfile = config.get("inverter", "logfile")
 
 		numeric_level = getattr(logging, loglevel.upper(), None)
 		if not isinstance(numeric_level, int):
 			raise ValueError('Invalid log level: %s' % loglevel)
 			
-		logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename='/home/pi/GoodWeUSBLogger/goodwecomm.log', level=numeric_level)
-		#log = logging.getLogger("Timed Rotating Log")
-		#trfh = TimedRotatingFileHandler('/home/pi/GoodWeUSBLogger/goodwecomm.log', when='midnight', interval=1, backupCount=4, encoding=None, delay=False, utc=False)
-		#log.addHandler(trfh)
+		logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename=logfile, level=numeric_level)
 		
 		try:
 			client = mqtt.Client(mqttclientid);
@@ -65,7 +64,7 @@ class MyDaemon(Daemon):
 
 						if inverter.isOnline:
 							logging.debug('Publishing telegram to MQTT')
-							datagram = inverter.toJSON() # json.dumps(inverter.__dict__)
+							datagram = inverter.toJSON()
 							client.publish(combinedtopic + '/data', datagram)
 							client.publish(combinedtopic + '/online', 1)
 						else:
@@ -84,7 +83,7 @@ class MyDaemon(Daemon):
 
 	
 if __name__ == "__main__":
-	daemon = MyDaemon('/var/run/goodwe/goodwecomm.pid', '/dev/null', '/var/log/goodwe/comm.out', '/var/log/goodwe/comm.err')
+	daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
 	if len(sys.argv) == 2:
 		if 'start' == sys.argv[1]:
 			daemon.start()
