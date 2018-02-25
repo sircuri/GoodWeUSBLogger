@@ -1,16 +1,19 @@
-image: alpine
+image: docker:latest
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
-  VERSION_ID: '1.0'
-  ARTIFACT_ID: 'GoodWeUSBLogger-$VERSION_ID.$CI_PIPELINE_ID'
+  DOCKER_DRIVER: overlay2
+
+services:
+- docker:dind
 
 before_script:
 - /bin/sh ci/docker_install.sh > /dev/null
 
-build:app:
+build:
+  stage: build
+  tags:
+    - privileged
   script:
-  - 'mkdir build'
-  - 'tar -cvzf ./build/GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz -X ci/exclude.tar ./'
-  - 'curl -X POST http://192.168.2.210/api/packages/raw?replace=true -H "X-Octopus-ApiKey: API-VLXQTLD5C45AQYCTDGAJUOAY3O" -F "file=@\"build/GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz\";filename=\"GoodWeUSBLogger.1.0.${CI_PIPELINE_ID}.tar.gz\";type=application/zip"'
-
+  - 'echo "Using registry: ${REGISTRY_URL}"'
+  - /bin/sh ci/build.sh
