@@ -7,6 +7,10 @@ based on: https://github.com/jantenhove/GoodWeLogger
 [TODO List](GoodWeUSBLogger)
 [[TODO List|GoodWeUSBLogger]]
 
+## Required Python version
+
+I'm currently using Python 2.7.9 on a Raspberry Pi for this project. It has been verified that it is not working with Python3.
+
 ## Required modules
 
 * pyudev
