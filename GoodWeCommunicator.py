@@ -83,7 +83,7 @@ class RunningInfo(object):
 	def __init__(self):
 		self.function = FC_RESRUN		# Function 0x81 'Running Info List'
 
-		self.timestamp = "";
+		self.timestamp = ""
 		self.vpv1 = 0.0
 		self.vpv2 = 0.0
 		self.ipv1 = 0.0
