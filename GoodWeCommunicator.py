@@ -83,7 +83,7 @@ class RunningInfo(object):
 	def __init__(self):
 		self.function = FC_RESRUN		# Function 0x81 'Running Info List'
 
-		self.timestamp = "";
+		self.timestamp = ""
 		self.vpv1 = 0.0
 		self.vpv2 = 0.0
 		self.ipv1 = 0.0
@@ -189,6 +189,7 @@ class GoodWeCommunicator(object):
 
 
 	def __init__(self, logger):
+        self.timezone = pytz.timezone("Europe/Amsterdam")
 		self.log = logger
 		self.inputBuffer = [0] * self.BUFFERSIZE
 		self.lastReceived = millis() 			#timeout detection
@@ -466,7 +467,10 @@ class GoodWeCommunicator(object):
 		if dataLength == 66:
 			inverterType = InverterType.THREEPHASE
 
-		runningInfo.timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+		localized = self.timezone.localize(datetime.now())
+		ts = localized.astimezone(pytz.utc).strftime("%Y%m%d%H%M%S")
+
+		runningInfo.timestamp = ts
 		dtPtr = 0
 		runningInfo.vpv1 = self.bytesToFloat(data[dtPtr:], 10)
 		dtPtr += 2

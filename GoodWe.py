@@ -36,7 +36,7 @@ class MyDaemon(Daemon):
 		logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename=logfile, level=numeric_level)
 		
 		try:
-			client = mqtt.Client(mqttclientid);
+			client = mqtt.Client(mqttclientid)
 			client.connect(mqttserver)
 			client.loop_start()
 		except Exception as e:
