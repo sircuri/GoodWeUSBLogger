@@ -5,7 +5,7 @@ from pyudev import Devices, Context, Monitor, MonitorObserver
 import datetime
 import hidrawpure as hidraw
 import os, fcntl
-import logging
+import logging, pytz
 import json
 
 millis = lambda: int(round(time.time() * 1000))
@@ -467,7 +467,7 @@ class GoodWeCommunicator(object):
         if dataLength == 66:
             inverterType = InverterType.THREEPHASE
 
-        localized = self.timezone.localize(datetime.now())
+        localized = self.timezone.localize(datetime.datetime.now())
         ts = localized.astimezone(pytz.utc).strftime("%Y%m%d%H%M%S")
 
         runningInfo.timestamp = ts
