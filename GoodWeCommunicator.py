@@ -5,7 +5,7 @@ from pyudev import Devices, Context, Monitor, MonitorObserver
 import datetime
 import hidrawpure as hidraw
 import os, fcntl
-import logging, pytz
+import logging
 import json
 
 millis = lambda: int(round(time.time() * 1000))
@@ -189,7 +189,6 @@ class GoodWeCommunicator(object):
 
 
     def __init__(self, logger):
-        self.timezone = pytz.timezone("Europe/Amsterdam")
         self.log = logger
         self.inputBuffer = [0] * self.BUFFERSIZE
         self.lastReceived = millis()             #timeout detection
@@ -467,10 +466,7 @@ class GoodWeCommunicator(object):
         if dataLength == 66:
             inverterType = InverterType.THREEPHASE
 
-        localized = self.timezone.localize(datetime.datetime.now())
-        ts = localized.astimezone(pytz.utc).strftime("%Y%m%d%H%M%S")
-
-        runningInfo.timestamp = ts
+        runningInfo.timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         dtPtr = 0
         runningInfo.vpv1 = self.bytesToFloat(data[dtPtr:], 10)
         dtPtr += 2
