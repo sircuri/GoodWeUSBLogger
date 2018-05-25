@@ -6,4 +6,3 @@ sudo python -m pip install ioctl_opt
 sudo python -m pip install configparser
 sudo python -m pip install paho-mqtt
 sudo python -m pip install enum
-sudo python -m pip install pytz
