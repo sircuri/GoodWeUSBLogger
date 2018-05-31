@@ -48,7 +48,6 @@ class MyDaemon(Daemon):
         self.gw = goodwe.GoodWeCommunicator(logging)
 
         lastUpdate = millis()
-        lastCycle = millis()
 
         while True:
             try:
