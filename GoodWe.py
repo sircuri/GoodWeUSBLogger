@@ -26,6 +26,8 @@ class MyDaemon(Daemon):
         
         loglevel = config.get("inverter", "loglevel")
         interval = config.getint("inverter", "pollinterval")
+        vendorId = config.getint("inverter", "vendorId")
+        modelId = config.getint("inverter", "modelId")
         
         logfile = config.get("inverter", "logfile")
 
@@ -45,10 +47,9 @@ class MyDaemon(Daemon):
 
         logging.info('Connected to MQTT %s', mqttserver)
         
-        self.gw = goodwe.GoodWeCommunicator(logging)
+        self.gw = goodwe.GoodWeCommunicator(logging, vendorId, modelId)
 
         lastUpdate = millis()
-        lastCycle = millis()
 
         while True:
             try:
