@@ -188,8 +188,10 @@ class GoodWeCommunicator(object):
     DEFAULT_RESETWAIT = 60            #default wait time in seconds
 
 
-    def __init__(self, logger):
+    def __init__(self, logger, vendorId, modelId):
         self.log = logger
+        self.vendorId = vendorId
+        self.modelId = modelId
         self.inputBuffer = [0] * self.BUFFERSIZE
         self.lastReceived = millis()             #timeout detection
         self.startPacketReceived = False        #start packet marker
@@ -223,7 +225,7 @@ class GoodWeCommunicator(object):
         
         self.resetWait()
         
-        self.rawdevice = self.findGoodWeUSBDevice('0084', '0041')
+        self.rawdevice = self.findGoodWeUSBDevice()
         if self.rawdevice is None:
             self.log.error('No GoodWe Inverter found.')
             return
@@ -244,7 +246,7 @@ class GoodWeCommunicator(object):
             self.setState(State.CONNECTED)
     
     
-    def findGoodWeUSBDevice(self, vendorId, modelId):
+    def findGoodWeUSBDevice(self):
         context = Context()
         
         usb_list = [d for d in os.listdir("/dev") if d.startswith("hidraw")]
@@ -253,7 +255,7 @@ class GoodWeCommunicator(object):
 
             udev = Devices.from_device_file(context, device)
             
-            if udev['DEVPATH'].find(vendorId + ":" + modelId) > -1:
+            if udev['DEVPATH'].find(str(self.vendorId) + ":" + str(self.modelId)) > -1:
                 return device
         
         return None
