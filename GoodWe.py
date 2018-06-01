@@ -26,8 +26,8 @@ class MyDaemon(Daemon):
         
         loglevel = config.get("inverter", "loglevel")
         interval = config.getint("inverter", "pollinterval")
-        vendorId = config.getint("inverter", "vendorId")
-        modelId = config.getint("inverter", "modelId")
+        vendorId = config.get("inverter", "vendorId")
+        modelId = config.get("inverter", "modelId")
         
         logfile = config.get("inverter", "logfile")
 
