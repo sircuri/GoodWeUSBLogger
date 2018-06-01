@@ -687,7 +687,7 @@ class GoodWeCommunicator(object):
 
             elif self.state == State.RUNNING:
                 #ask for info update every second
-                if millis() - self.lastInfoUpdateSent >= 1000:
+                if millis() - self.lastInfoUpdateSent >= INFO_INTERVAL:
                     self.askInverterForInformation()
                     self.lastInfoUpdateSent = millis()
                 
