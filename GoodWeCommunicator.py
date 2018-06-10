@@ -184,7 +184,7 @@ class GoodWeCommunicator(object):
     STATE_TIMEOUT = 10000            #10 seconds timeout between states
     OFFLINE_TIMEOUT = 30000            #30 seconds no data -> inverter offline
     DISCOVERY_INTERVAL = 10000        #10 secs between discovery 
-    INFO_INTERVAL = 1000            #get inverter info every second
+    INFO_INTERVAL = 2500            #get inverter info every 2.5 second
     DEFAULT_RESETWAIT = 60            #default wait time in seconds
 
 
@@ -687,7 +687,7 @@ class GoodWeCommunicator(object):
 
             elif self.state == State.RUNNING:
                 #ask for info update every second
-                if millis() - self.lastInfoUpdateSent >= INFO_INTERVAL:
+                if millis() - self.lastInfoUpdateSent >= self.INFO_INTERVAL:
                     self.askInverterForInformation()
                     self.lastInfoUpdateSent = millis()
                 
