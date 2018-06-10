@@ -420,7 +420,7 @@ class GoodWeCommunicator(object):
         self.inverter.serialNumber = serialNumber[0:16]
         self.inverter.serial = "".join(map(chr, serialNumber[0:16]))
         self.inverter.address = self.INVERTER_COMMS_ADDRESS
-        self.log.info("New inverter found. Register address.")
+        self.log.info("New inverter found with serial id: %s. Register address.", self.inverter.serial)
  
         self.setState(State.ALLOC)
  
