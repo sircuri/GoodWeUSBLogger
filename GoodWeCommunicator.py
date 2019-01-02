@@ -416,7 +416,6 @@ class GoodWeCommunicator(object):
  
         self.inverter.addressConfirmed = False
         self.inverter.lastSeen = millis()
-        self.inverter.isDTSeries = False
         self.inverter.serialNumber = serialNumber[0:16]
         self.inverter.serial = "".join(map(chr, serialNumber[0:16]))
         self.inverter.address = self.INVERTER_COMMS_ADDRESS
@@ -691,8 +690,8 @@ class GoodWeCommunicator(object):
                     self.askInverterForInformation()
                     self.lastInfoUpdateSent = millis()
                 
-                #check response timeout
-                self.checkOfflineInverter()
+            #check response timeout
+            self.checkOfflineInverter()
 
             self.checkIncomingData()
 
