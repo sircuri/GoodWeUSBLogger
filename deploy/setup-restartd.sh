@@ -18,7 +18,7 @@ restartd_cmd="goodwe \"GoodWe.py\" \"cd $targetpath; ./GoodWe.py restart\""
 if grep -q "GoodWe.py" /etc/restartd.conf; then 
     sudo sed -i "/GoodWe.py/c $restartd_cmd" /etc/restartd.conf
 else
-    sudo printf "\n$restart_cmd\n" >> /etc/restartd.conf
+    printf "\n$restart_cmd\n" | sudo tee -a /etc/restartd.conf > /dev/null
 fi
 
 echo "Start Restartd daemon"
