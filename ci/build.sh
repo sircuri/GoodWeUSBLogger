@@ -6,7 +6,7 @@ USERNAME=domotica
 IMAGE=GoodWeUSBLogger
 MASTER=1
 
-BASEVERSION="$(cat VERSION)"
+BASEVERSION="$(date +'%Y.%m')"
 VERSION="${BASEVERSION}.${CI_PIPELINE_ID}"
 
 if [ $CI_COMMIT_REF_SLUG != "master" ]; then
