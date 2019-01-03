@@ -690,8 +690,8 @@ class GoodWeCommunicator(object):
                     self.askInverterForInformation()
                     self.lastInfoUpdateSent = millis()
                 
-            #check response timeout
-            self.checkOfflineInverter()
+                #check response timeout
+                self.checkOfflineInverter()
 
             self.checkIncomingData()
 
