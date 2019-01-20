@@ -188,7 +188,7 @@ class GoodWeCommunicator(object):
     OFFLINE_TIMEOUT = 30000            #30 seconds no data -> inverter offline
     DISCOVERY_INTERVAL = 10000        #10 secs between discovery 
     INFO_INTERVAL = 2500            #get inverter info every 2.5 second
-    DEFAULT_RESETWAIT = 60            #default wait time in seconds
+    DEFAULT_RESETWAIT = 30            #default wait time in seconds
 
 
     def __init__(self, logger, vendorId, modelId):
