@@ -19,7 +19,7 @@ class IDInfo(object):
         self.modelName = ""
         self.manufacturer = ""
         self.serialNumber = ""
-        self.nominalVpv = 0
+        self.nominalVpv = 0.0
         self.internalVersion = ""
         self.safetyCountryCode = 0x0
         
@@ -145,8 +145,11 @@ class State(Enum):
     ALLOC_WAIT_CONFIRM = 5
     ALLOC_ASK_INFO = 6
     ALLOC_ASK_ID = 7
-    ALLOC_ASK_SETTING = 8
-    RUNNING = 9
+    ALLOC_ASK_ID_WAIT_CONFIRM = 8
+    ALLOC_ASK_SETTING = 9
+    ALLOC_ASK_SETTING_WAIT_CONFIRM = 10
+    RUNNING = 11
+
 
 class InverterType(Enum):
     SINGLEPHASE = 1
@@ -209,21 +212,12 @@ class GoodWeCommunicator(object):
         self.rawdevice = None
         self.devfp = None
         self.device = None
-    
-        self.lastWaitTime = 0
-    
-    
-    def resetWait(self):
-        self.log.debug('Wait %s minutes before next device poll', (self.lastWaitTime * self.lastWaitTime))
-        time.sleep((self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT)
-        if (self.lastWaitTime < 4): # max of 25 minutes wait
-            self.lastWaitTime += 1
-    
-    
+
+
     def resetUSBDevice(self):
         self.closeDevice()
         
-        self.resetWait()
+        time.sleep(self.DEFAULT_RESETWAIT)
         
         self.rawdevice = self.findGoodWeUSBDevice()
         if self.rawdevice is None:
@@ -231,7 +225,6 @@ class GoodWeCommunicator(object):
             return
         
         self.log.debug('Found GoodWe Inverter at %s', self.rawdevice)
-        self.lastWaitTime = 0
         
         self.lastReceived = millis()
         self.startPacketReceived = False
@@ -569,11 +562,12 @@ class GoodWeCommunicator(object):
         idInfo.modelName             = "".join(map(chr, data[5:15]))
         idInfo.manufacturer         = "".join(map(chr, data[15:31]))
         idInfo.serialNumber         = "".join(map(chr, data[31:47]))
-        idInfo.nominalVpv             = "".join(map(chr, data[47:51]))
+        idInfo.nominalVpv             = float("".join(map(chr, data[47:51]))) / 10
         idInfo.internalVersion         = "".join(map(chr, data[51:63]))
         idInfo.safetyCountryCode     = data[63]
     
         self.inverter.idInfo = idInfo
+        self.setState(State.ALLOC_ASK_SETTING)
 
     
     def handleIncomingSetting(self, address, dataLength, data):
@@ -598,6 +592,7 @@ class GoodWeCommunicator(object):
         settingInfo.facMax = self.bytesToFloat(data[dtPtr:], 100)
         
         self.inverter.settingInfo = settingInfo
+        self.setState(State.RUNNING)
 
         
     def sendDiscovery(self):
@@ -613,7 +608,7 @@ class GoodWeCommunicator(object):
             newOnline = ((millis() - self.inverter.lastSeen) < self.OFFLINE_TIMEOUT)
 
             #check if inverter timed out
-            if not newOnline and self.inverter.isOnline:
+            if not newOnline:
                 self.log.info("Marking inverter @ address %s offline", self.inverter.address)
                 self.setState(State.OFFLINE)
 
@@ -625,7 +620,11 @@ class GoodWeCommunicator(object):
     def askInverterForInformation(self, force = False):
         if force or (self.inverter.addressConfirmed and self.inverter.isOnline):
             self.sendData(self.inverter.address, CC_READ, FC_QRYRUN, NODATA)
-            self.setState(State.RUNNING)
+
+            if force:
+                self.setState(State.ALLOC_ASK_ID)
+            else:
+                self.setState(State.RUNNING)
         else:
             self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
 
@@ -634,6 +633,8 @@ class GoodWeCommunicator(object):
         if self.inverter.isOnline:
             self.log.debug("askInverterForID")
             self.sendData(self.inverter.address, CC_READ, FC_QRYID, NODATA)
+                    
+            self.setState(State.ALLOC_ASK_ID_WAIT_CONFIRM)
         else:
             self.log.debug('Skip inverter %s for ID. Online = %s', self.inverter.address, self.inverter.isOnline)
             
@@ -642,6 +643,8 @@ class GoodWeCommunicator(object):
         if self.inverter.isOnline:
             self.log.debug("askInverterForSetting")
             self.sendData(self.inverter.address, CC_READ, FC_QRYSTT, NODATA)
+                    
+            self.setState(State.ALLOC_ASK_SETTING_WAIT_CONFIRM)
         else:
             self.log.debug('Skip inverter %s for Settings. Online = %s', self.inverter.address, self.inverter.isOnline)
             
