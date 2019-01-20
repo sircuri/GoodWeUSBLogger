@@ -3,5 +3,8 @@
 ./.gitmodules
 ./.gitlab-ci.yml
 ./.DS_Store
+./.vscode
 ./ci
 ./build
+./GoodWeUsbLogger.code-workspace
+./docs
