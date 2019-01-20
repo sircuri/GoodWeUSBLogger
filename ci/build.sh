@@ -17,4 +17,4 @@ echo "version: $VERSION"
 echo "Build ${IMAGE}"
 mkdir -p out
 package="${IMAGE}.${VERSION}.tar.gz"
-tar -cvzf "out/${package}" --exclude="./ci" --exclude="Dockerfile" --exclude="./out" --exclude="./.git*" ./
+tar -cvzf "out/${package}" --exclude-from=./ci/exclude.tar ./

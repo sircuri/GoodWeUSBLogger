@@ -8,3 +8,4 @@
 ./build
 ./GoodWeUsbLogger.code-workspace
 ./docs
+./out
