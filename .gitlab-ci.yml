@@ -1,19 +1,30 @@
-image: docker:latest
+image: alpine:latest
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
-  DOCKER_DRIVER: overlay2
 
-services:
-- docker:dind
-
-before_script:
-- /bin/sh ci/docker_install.sh > /dev/null
+stages:
+  - build
+  - deploy
 
 build:
   stage: build
-  tags:
-    - privileged
+  artifacts:
+    expire_in: 1 hour
+    paths:
+      - out/*.tar.gz
   script:
-  - 'echo "Using registry: ${REGISTRY_URL}"'
   - /bin/sh ci/build.sh
+  only:
+    refs:
+      - master
+
+deploy_production:
+  stage: deploy
+  dependencies:
+    - build
+  script:
+  - /bin/sh ci/deploy.sh
+  only:
+    refs:
+      - master

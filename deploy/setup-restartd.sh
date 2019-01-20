@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# sudo apt-get update
-targetpath=$(get_octopusvariable "Application.Installation.Path")
+targetpath=/opt/goodweusblogger
 
 echo "Install Restartd daemon"
 # Prevent launch of servers during apt-get install
