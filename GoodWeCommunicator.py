@@ -621,10 +621,7 @@ class GoodWeCommunicator(object):
         if force or (self.inverter.addressConfirmed and self.inverter.isOnline):
             self.sendData(self.inverter.address, CC_READ, FC_QRYRUN, NODATA)
 
-            if force:
-                self.setState(State.ALLOC_ASK_ID)
-            else:
-                self.setState(State.RUNNING)
+            self.setState(State.RUNNING)
         else:
             self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
 
