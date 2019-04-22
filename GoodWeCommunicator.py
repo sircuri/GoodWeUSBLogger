@@ -2,6 +2,7 @@ from enum import Enum
 
 import time
 from pyudev import Devices, Context, Monitor, MonitorObserver
+from usb.core import find as finddev
 import datetime
 import hidrawpure as hidraw
 import os, fcntl
@@ -216,13 +217,25 @@ class GoodWeCommunicator(object):
         if (self.lastWaitTime < 4):  # max of 25 minutes wait
             self.lastWaitTime += 1
 
+    def resetUSB(self):
+        dev = finddev(idVendor=0x0084, idProduct=0x0041)
+
+        # Reset device only if:
+        # - The USB device is found
+        # - The inverter state is offline
+        # - It was previously exporting power
+        if dev is not None and self.inverter.runningInfo.pac > 0:
+            self.log.info('USB device port reset')
+            dev.reset()
+            time.sleep(1)
+
     def resetUSBDevice(self):
         self.closeDevice()
-
+        self.resetUSB()
         self.resetWait()
 
         self.rawdevice = self.findGoodWeUSBDevice('0084', '0041')
-        if self.rawdevice is None:
+        if self.rawdevice is None or not self.openDevice():
             self.log.error('No GoodWe Inverter found.')
             return
 
@@ -237,9 +250,7 @@ class GoodWeCommunicator(object):
         self.inverter.runningInfo = RunningInfo()
         self.inverter.idInfo = IDInfo()
         self.inverter.settingInfo = SettingInfo()
-
-        if self.openDevice():
-            self.setState(State.CONNECTED)
+        self.setState(State.CONNECTED)
 
     def findGoodWeUSBDevice(self, vendorId, modelId):
         context = Context()
@@ -269,7 +280,7 @@ class GoodWeCommunicator(object):
 
             return True
         except Exception as e:
-            self.log.error("Unable to open %s", self.rawdevice)
+            self.log.error("Unable to open %s: %s", self.rawdevice, e)
             return False
 
     def closeDevice(self):

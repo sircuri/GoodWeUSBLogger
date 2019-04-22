@@ -10,6 +10,7 @@ based on: https://github.com/jantenhove/GoodWeLogger
 * configparser
 * paho-mqtt
 * enum
+* pyusb
 
 ## Config
 
