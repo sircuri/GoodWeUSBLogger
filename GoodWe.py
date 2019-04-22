@@ -9,11 +9,41 @@ import paho.mqtt.client as mqtt
 import time
 import json
 import os
+import gzip
 
 import GoodWeCommunicator as goodwe
 
 millis = lambda: int(round(time.time() * 1000))
 
+
+def logging_namer(name):
+    return name + ".gz"
+
+
+def logging_rotator(source, dest):
+    with open(source, "rb") as sf:
+        data = sf.read()
+        with gzip.open(dest, "wb") as df:
+            df.write(data)
+    os.remove(source)
+
+
+def logging_setup(level):
+    formatter = logging.Formatter('%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s')
+
+    filehandler = logging.handlers.RotatingFileHandler('/home/pi/GoodWeUSBLogger/goodwecomm.log', maxBytes=10*1024*1024,
+                                                       backupCount=5)
+    filehandler.setFormatter(formatter)
+
+    stdouthandler = logging.StreamHandler(sys.stdout)
+    stdouthandler.setFormatter(formatter)
+
+    logger = logging.getLogger('main')
+    logger.namer = logging_namer
+    logger.rotator = logging_rotator
+    logger.addHandler(filehandler)
+    logger.addHandler(stdouthandler)
+    logger.setLevel(logging.DEBUG)
 
 class MyDaemon(Daemon):
     def run(self):
@@ -32,23 +62,20 @@ class MyDaemon(Daemon):
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: %s' % loglevel)
 
-        logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s',
-                            filename='/home/pi/GoodWeUSBLogger/goodwecomm.log', level=numeric_level)
-        # log = logging.getLogger("Timed Rotating Log")
-        # trfh = TimedRotatingFileHandler('/home/pi/GoodWeUSBLogger/goodwecomm.log', when='midnight', interval=1, backupCount=4, encoding=None, delay=False, utc=False)
-        # log.addHandler(trfh)
+        logging_setup(numeric_level)
+        logger = logging.getLogger('main')
 
         try:
-            client = mqtt.Client(mqttclientid);
+            client = mqtt.Client(mqttclientid)
             client.connect(mqttserver)
             client.loop_start()
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             return
 
-        logging.info('Connected to MQTT %s', mqttserver)
+        logger.info('Connected to MQTT %s', mqttserver)
 
-        self.gw = goodwe.GoodWeCommunicator(logging)
+        self.gw = goodwe.GoodWeCommunicator(logger)
 
         lastUpdate = millis()
         lastCycle = millis()
@@ -66,12 +93,12 @@ class MyDaemon(Daemon):
                         combinedtopic = mqtttopic + '/' + inverter.serial
 
                         if inverter.isOnline:
-                            logging.debug('Publishing telegram to MQTT')
+                            logger.debug('Publishing telegram to MQTT')
                             datagram = inverter.toJSON()  # json.dumps(inverter.__dict__)
                             client.publish(combinedtopic + '/data', datagram)
                             client.publish(combinedtopic + '/online', 1)
                         else:
-                            logging.debug('Inverter offline')
+                            logger.debug('Inverter offline')
                             client.publish(combinedtopic + '/online', 0)
 
                     lastUpdate = millis()
@@ -79,7 +106,7 @@ class MyDaemon(Daemon):
                 time.sleep(0.1)
 
             except Exception as err:
-                logging.exception("Error in RUN-loop")
+                logger.exception("Error in RUN-loop")
                 break
 
         client.loop_stop()
