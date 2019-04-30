@@ -83,7 +83,7 @@ class RunningInfo(object):
     def __init__(self):
         self.function = FC_RESRUN  # Function 0x81 'Running Info List'
 
-        self.timestamp = "";
+        self.timestamp = ""
         self.vpv1 = 0.0
         self.vpv2 = 0.0
         self.ipv1 = 0.0
@@ -147,6 +147,7 @@ class State(Enum):
     ALLOC_ASK_ID = 7
     ALLOC_ASK_SETTING = 8
     RUNNING = 9
+    ERROR = 10
 
 
 class InverterType(Enum):
@@ -212,26 +213,27 @@ class GoodWeCommunicator(object):
         self.lastWaitTime = 0
 
     def resetWait(self):
-        self.log.debug('Wait %s minutes before next device poll', (self.lastWaitTime * self.lastWaitTime))
-        time.sleep((self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT)
+        wait_time = (self.lastWaitTime * self.lastWaitTime) * self.DEFAULT_RESETWAIT + 10
+        self.log.debug('Wait %.2f minutes before next device poll', wait_time / 60.0)
+        time.sleep(wait_time)
         if (self.lastWaitTime < 4):  # max of 25 minutes wait
             self.lastWaitTime += 1
 
-    def resetUSB(self):
+    def resetUSB(self, force_bus_reset=False):
         dev = finddev(idVendor=0x0084, idProduct=0x0041)
 
         # Reset device only if:
         # - The USB device is found
         # - The inverter state is offline
         # - It was previously exporting power
-        if dev is not None and self.inverter.runningInfo.pac > 0:
+        if dev is not None and (self.inverter.runningInfo.pac > 0 or force_bus_reset):
             self.log.info('USB device port reset')
             dev.reset()
             time.sleep(1)
 
-    def resetUSBDevice(self):
+    def resetUSBDevice(self, force_bus_reset=False):
         self.closeDevice()
-        self.resetUSB()
+        self.resetUSB(force_bus_reset)
         self.resetWait()
 
         self.rawdevice = self.findGoodWeUSBDevice('0084', '0041')
@@ -644,7 +646,7 @@ class GoodWeCommunicator(object):
                 self.statetime = millis()
             else:
                 self.log.debug("State machine time-out. Last state: %s", self.state)
-                self.state = State.OFFLINE
+                self.setState(State.OFFLINE)
 
         if self.state == State.OFFLINE:
             self.resetUSBDevice()

@@ -88,18 +88,16 @@ class MyDaemon(Daemon):
 
                     inverter = self.gw.getInverter()
 
-                    if inverter.addressConfirmed:
+                    combinedtopic = mqtttopic + '/' + inverter.serial
 
-                        combinedtopic = mqtttopic + '/' + inverter.serial
-
-                        if inverter.isOnline:
-                            logger.debug('Publishing telegram to MQTT')
-                            datagram = inverter.toJSON()  # json.dumps(inverter.__dict__)
-                            client.publish(combinedtopic + '/data', datagram)
-                            client.publish(combinedtopic + '/online', 1)
-                        else:
-                            logger.debug('Inverter offline')
-                            client.publish(combinedtopic + '/online', 0)
+                    if inverter.isOnline and self.gw.state == 9:
+                        logger.debug('Publishing telegram to MQTT')
+                        datagram = inverter.toJSON()  # json.dumps(inverter.__dict__)
+                        client.publish(combinedtopic + '/data', datagram)
+                        client.publish(combinedtopic + '/online', 1)
+                    else:
+                        logger.debug('Inverter offline')
+                        client.publish(combinedtopic + '/online', 0)
 
                     lastUpdate = millis()
 
@@ -113,8 +111,7 @@ class MyDaemon(Daemon):
 
 
 if __name__ == "__main__":
-    daemon = MyDaemon('/var/run/goodwe/goodwecomm.pid', '/dev/null', '/var/log/goodwe/comm.out',
-                      '/var/log/goodwe/comm.err')
+    daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/var/log/goodwe/comm.out', '/var/log/goodwe/comm.err')
     if len(sys.argv) == 2:
         if 'start' == sys.argv[1]:
             daemon.start()
@@ -122,6 +119,8 @@ if __name__ == "__main__":
             daemon.stop()
         elif 'restart' == sys.argv[1]:
             daemon.restart()
+        elif 'foreground' == sys.argv[1]:
+            daemon.run()
         else:
             print("Unknown command")
             sys.exit(2)
