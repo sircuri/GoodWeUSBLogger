@@ -64,12 +64,13 @@ class MyDaemon(Daemon):
                         combinedtopic = mqtttopic + '/' + inverter.serial
 
                         if inverter.isOnline:
-                            logging.debug('Publishing telegram to MQTT')
                             datagram = inverter.toJSON()
+                            logging.debug('Publishing telegram to MQTT on channel ' + combinedtopic + '/data')
                             client.publish(combinedtopic + '/data', datagram)
+                            logging.debug('Publishing 1 to MQTT on channel ' + combinedtopic + '/online')
                             client.publish(combinedtopic + '/online', 1)
                         else:
-                            logging.debug('Inverter offline')
+                            logging.debug('Publishing 0 to MQTT on channel ' + combinedtopic + '/online')
                             client.publish(combinedtopic + '/online', 0)
                         
                     lastUpdate = millis()
