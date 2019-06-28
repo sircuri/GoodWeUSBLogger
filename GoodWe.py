@@ -19,17 +19,20 @@ class MyDaemon(Daemon):
         config = configparser.RawConfigParser()
         config.read('/etc/goodwe.conf')
         
-        mqttserver = config.get("mqtt", "server")
-        mqttport = config.get("mqtt", "port")
-        mqtttopic = config.get("mqtt", "topic")
-        mqttclientid = config.get("mqtt", "clientid")
+        mqttserver = config.get("mqtt", "server", fallback="localhost")
+        mqttport = config.getint("mqtt", "port", fallback=1883)
+        mqtttopic = config.get("mqtt", "topic", fallback="goodwe")
+        mqttclientid = config.get("mqtt", "clientid", fallback="goodwe-usb")
+        mqttusername = config.get("mqtt", "username", fallback="")
+        mqttpasswd = config.get("mqtt", "password", fallback=None) 
+
         
-        loglevel = config.get("inverter", "loglevel")
-        interval = config.getint("inverter", "pollinterval")
-        vendorId = config.get("inverter", "vendorId")
-        modelId = config.get("inverter", "modelId")
+        loglevel = config.get("inverter", "loglevel", fallback="INFO")
+        interval = config.getint("inverter", "pollinterval", fallback=2500)
+        vendorId = config.get("inverter", "vendorId", fallback="0084")
+        modelId = config.get("inverter", "modelId", fallback="0041")
         
-        logfile = config.get("inverter", "logfile")
+        logfile = config.get("inverter", "logfile", fallback="/var/log/goodwe.log")
 
         numeric_level = getattr(logging, loglevel.upper(), None)
         if not isinstance(numeric_level, int):
@@ -39,13 +42,16 @@ class MyDaemon(Daemon):
         
         try:
             client = mqtt.Client(mqttclientid)
-            client.connect(mqttserver)
+            if mqttusername != "":
+                client.username_pw_set(mqttusername, mqttpasswd);
+                logging.debug("Set username -%s-, password -%s-", mqttusername, mqttpasswd)
+            client.connect(mqttserver,port=mqttport )
             client.loop_start()
         except Exception as e:
-            logging.error(e)
+            logging.error("%s:%s: %s",mqttserver, mqttport, e)
             return
 
-        logging.info('Connected to MQTT %s', mqttserver)
+        logging.info('Connected to MQTT %s:%s', mqttserver, mqttport)
         
         self.gw = goodwe.GoodWeCommunicator(logging, vendorId, modelId)
 
