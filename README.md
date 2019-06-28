@@ -42,18 +42,25 @@ Create file _/etc/goodwe.conf_:
 
 ```
 [inverter]
-loglevel = INFO
-pollinterval = 2500
-vendorId = 0084
-modelId = 0041
-logfile = /var/log/goodwe.log
+#loglevel = DEBUG
+#pollinterval = 2500
+#vendorId = 0084
+#modelId = 0041
+#logfile = /var/log/goodwe.log
 
 [mqtt]
-server = <MQTT Server IP>
-port = 1883
-topic = goodwe
-clientid = <unique MQTT client id>
+#server = localhost
+#port = 1883
+#topic = goodwe
+#clientid = goodwe-usb
+#username = 
+#password = mypassword
+
 ```
+Almost all configuration parameters have sensible defaults and are commented out. The values shown are the defaults. If you ned to change a 
+setting remove the # in front of the parameter name.
+Only when username and the optional password are set, they will be used. Setting the username will trigger authentication for the MQTT server. 
+Password can optionally be set.
 
 ## Usage
 
