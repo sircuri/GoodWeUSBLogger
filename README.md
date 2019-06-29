@@ -57,7 +57,7 @@ Create file _/etc/goodwe.conf_:
 #password = mypassword
 
 ```
-Almost all configuration parameters have sensible defaults and are commented out. The values shown are the defaults. If you ned to change a 
+Almost all configuration parameters have sensible defaults and are commented out. The values shown are the defaults. If you need to change a 
 setting remove the # in front of the parameter name.
 Only when username and the optional password are set, they will be used. Setting the username will trigger authentication for the MQTT server. 
 Password can optionally be set.
