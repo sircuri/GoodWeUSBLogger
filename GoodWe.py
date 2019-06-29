@@ -14,8 +14,8 @@ import GoodWeCommunicator as goodwe
 
 millis = lambda: int(round(time.time() * 1000))
 
-class MyDaemon(Daemon):
-    def run(self):
+class GoodWeProcessor(object):
+    def run_process(self):
         config = configparser.RawConfigParser()
         config.read('/etc/goodwe.conf')
         
@@ -49,7 +49,7 @@ class MyDaemon(Daemon):
             client.loop_start()
         except Exception as e:
             logging.error("%s:%s: %s",mqttserver, mqttport, e)
-            return
+            return 3
 
         logging.info('Connected to MQTT %s:%s', mqttserver, mqttport)
         
@@ -88,21 +88,31 @@ class MyDaemon(Daemon):
                 break
 
         client.loop_stop()
+        return 0
+
+class MyDaemon(Daemon):
+    def run(self):
+        GoodWeProcessor.run_process()
 
     
 if __name__ == "__main__":
-    daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
-    if len(sys.argv) == 2:
-        if 'start' == sys.argv[1]:
-            daemon.start()
-        elif 'stop' == sys.argv[1]:
-            daemon.stop()
-        elif 'restart' == sys.argv[1]:
-            daemon.restart()
-        else:
-            print ("Unknown command")
-            sys.exit(2)
-        sys.exit(0)
-    else:
+    if len(sys.argv) != 2:
         print ("usage: %s start|stop|restart" % sys.argv[0])
         sys.exit(2)
+
+    if 'foreground' == sys.argv[1]:
+        processor = GoodWeProcessor()
+        ret_val = processor.run_process()
+        sys.exit(retval)
+ 
+    daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
+    if 'start' == sys.argv[1]:
+        daemon.start()
+    elif 'stop' == sys.argv[1]:
+        daemon.stop()
+    elif 'restart' == sys.argv[1]:
+        daemon.restart()
+    else:
+        print ("Unknown command")
+        sys.exit(2)
+    sys.exit(0)
