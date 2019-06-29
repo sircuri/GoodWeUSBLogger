@@ -92,7 +92,8 @@ class GoodWeProcessor(object):
 
 class MyDaemon(Daemon):
     def run(self):
-        GoodWeProcessor.run_process()
+        processor = GoodWeProcessor()
+        processor.run_process()
 
     
 if __name__ == "__main__":
@@ -104,8 +105,9 @@ if __name__ == "__main__":
         processor = GoodWeProcessor()
         ret_val = processor.run_process()
         sys.exit(retval)
- 
+
     daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
+ 
     if 'start' == sys.argv[1]:
         daemon.start()
     elif 'stop' == sys.argv[1]:
