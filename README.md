@@ -61,7 +61,7 @@ Almost all configuration parameters have sensible defaults and are commented out
 setting remove the # in front of the parameter name.
 Only when username and the optional password are set, they will be used. Setting the username will trigger authentication for the MQTT server. 
 Password can optionally be set.
-Please note that the logfile is nt used when used in foreground mode.
+Please note that the logfile is not used when used in foreground mode.
 
 ## Usage
 
@@ -74,7 +74,7 @@ To start the daemon application:
 ```bash
 $ sudo ./GoodWe.py start
 ```
-The program can also be started in the foreground with all logging to stderr (the logfile is not used). Strt the program as follows:
+The program can also be started in the foreground with all logging to stderr (the logfile is not used). Start the program as follows:
 
 ```bash
 $ sudo ./Goodwe.py foreground
@@ -109,7 +109,9 @@ I have everything running from _/opt/goodweusblogger_. If you have your applicat
 
 ## Systemd
 
-Running under systemd is an option for using restartd. Systemd will collect all logging information in it's journal. The following goodwe.service file runs under the user "goodwe".
+Running under systemd is an option for using restartd. Systemd will collect all logging information in it's journal. 
+The service unit allows one to run as a system user.
+
 Create the user as follows:
 
 ```bash
@@ -127,4 +129,23 @@ KERNEL=="hidraw*", ATTRS{busnum}=="1", ATTRS{idVendor}=="0084", ATTRS{idProduct}
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0084", ATTRS{idProduct}=="0041", MODE="0660", GROUP="plugdev", SYMLINK+="goodwe"
 
 ```
+The following goodwe.service file shall be placed in _/etc/systemd/system/goodwe.service.
 
+```bash
+[Unit]
+Description=Goodwe USB Logger
+After=basic.target
+
+[Service]
+Type=simple
+User=goodwe
+Group=goodwe
+ExecStart=/opt/goodweusblogger/GoodWe.py foreground
+Restart=always
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+The program can now as usual be started by _systemctl start goodwe.service_
