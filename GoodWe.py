@@ -15,7 +15,7 @@ import GoodWeCommunicator as goodwe
 millis = lambda: int(round(time.time() * 1000))
 
 class GoodWeProcessor(object):
-    def run_process(self):
+    def run_process(self, foreground):
         config = configparser.RawConfigParser()
         config.read('/etc/goodwe.conf')
         
@@ -37,8 +37,12 @@ class GoodWeProcessor(object):
         numeric_level = getattr(logging, loglevel.upper(), None)
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: %s' % loglevel)
-            
-        logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename=logfile, level=numeric_level)
+        
+        # If we are running in the foreground we use stderr for logging, if running as forking daemon we use the logfile            
+        if (foreground):
+            logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', stream=sys.stderr, level=numeric_level)
+        else:
+            logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename=logfile, level=numeric_level)
         
         try:
             client = mqtt.Client(mqttclientid)
@@ -93,7 +97,7 @@ class GoodWeProcessor(object):
 class MyDaemon(Daemon):
     def run(self):
         processor = GoodWeProcessor()
-        processor.run_process()
+        processor.run_process(foreground=False)
 
     
 if __name__ == "__main__":
@@ -103,7 +107,7 @@ if __name__ == "__main__":
 
     if 'foreground' == sys.argv[1]:
         processor = GoodWeProcessor()
-        ret_val = processor.run_process()
+        ret_val = processor.run_process(foreground=True)
         sys.exit(retval)
 
     daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
