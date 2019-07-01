@@ -129,7 +129,7 @@ KERNEL=="hidraw*", ATTRS{busnum}=="1", ATTRS{idVendor}=="0084", ATTRS{idProduct}
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0084", ATTRS{idProduct}=="0041", MODE="0660", GROUP="plugdev", SYMLINK+="goodwe"
 
 ```
-The following goodwe.service file shall be placed in _/etc/systemd/system/goodwe.service.
+The following goodwe.service file shall be placed in _/etc/systemd/system/goodwe.service_.
 
 ```bash
 [Unit]
@@ -149,3 +149,4 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 The program can now as usual be started by _systemctl start goodwe.service_
+Systemd will run the program as the user goodwe and take care of restarting it when necessary. All logging information will be shown in the systemd logs.
