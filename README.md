@@ -61,6 +61,7 @@ Almost all configuration parameters have sensible defaults and are commented out
 setting remove the # in front of the parameter name.
 Only when username and the optional password are set, they will be used. Setting the username will trigger authentication for the MQTT server. 
 Password can optionally be set.
+Please note that the logfile is nt used when used in foreground mode.
 
 ## Usage
 
@@ -72,6 +73,11 @@ To start the daemon application:
 
 ```bash
 $ sudo ./GoodWe.py start
+```
+The program can also be started in the foreground with all logging to stderr (the logfile is not used). Strt the program as follows:
+
+```bash
+$ sudo ./Goodwe.py foreground
 ```
 
 ## Inverter information
@@ -100,3 +106,25 @@ goodwe "GoodWe.py" "cd /opt/goodweusblogger; ./GoodWe.py restart"
 ```
 
 I have everything running from _/opt/goodweusblogger_. If you have your application installed somewhere else you need to update the above statement.
+
+## Systemd
+
+Running under systemd is an option for using restartd. Systemd will collect all logging information in it's journal. The following goodwe.service file runs under the user "goodwe".
+Create the user as follows:
+
+```bash
+
+useradd --system goodwe
+
+```
+
+and modify the _/etc/udev/rules.d/98-my-usb-device.rules_ as follows:
+
+```bash
+
+SUBSYSTEM=="input", GROUP="input", MODE="0666"
+KERNEL=="hidraw*", ATTRS{busnum}=="1", ATTRS{idVendor}=="0084", ATTRS{idProduct}=="0041", MODE="0660", GROUP="goodwe"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0084", ATTRS{idProduct}=="0041", MODE="0660", GROUP="plugdev", SYMLINK+="goodwe"
+
+```
+
