@@ -4,6 +4,8 @@ from https://github.com/vpelletier/python-hidraw
  copied and renamed due to the existence of another 'hidraw' package on pypi which seems to conflict in some way.
 
 """
+from __future__ import absolute_import
+from __future__ import print_function
 import ctypes
 import collections
 import fcntl
@@ -139,7 +141,7 @@ class HIDRaw(object):
         length = len(report) + 1
         buf = ctypes.create_string_buffer(b(chr(report_num) + report), length)
         self._ioctl(_HIDIOCSFEATURE(length), buf, True)
-        print _HIDIOCSFEATURE(length)
+        print(_HIDIOCSFEATURE(length))
 
     def getFeatureReport(self, report_num=0, length=63):
         """
