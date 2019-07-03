@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from enum import Enum
 
 import time
@@ -7,6 +8,8 @@ import hidrawpure as hidraw
 import os, fcntl
 import logging
 import json
+from six.moves import map
+from six.moves import range
 
 millis = lambda: int(round(time.time() * 1000))
 

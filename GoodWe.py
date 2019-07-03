@@ -1,4 +1,6 @@
-#!/usr/bin/python -tt
+#!/usr/bin/python3 -tt
+from __future__ import absolute_import
+from __future__ import print_function
 from daemonpy.daemon import Daemon
 
 import configparser
@@ -102,12 +104,12 @@ class MyDaemon(Daemon):
     
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print ("usage: %s start|stop|restart" % sys.argv[0])
+        print(("usage: %s start|stop|restart" % sys.argv[0]))
         sys.exit(2)
 
     if 'foreground' == sys.argv[1]:
         processor = GoodWeProcessor()
-        ret_val = processor.run_process(foreground=True)
+        retval = processor.run_process(foreground=True)
         sys.exit(retval)
 
     daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
