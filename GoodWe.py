@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -tt
+#!/usr/bin/python -tt
 from __future__ import absolute_import
 from __future__ import print_function
 from daemonpy.daemon import Daemon
@@ -9,7 +9,6 @@ from logging.handlers import TimedRotatingFileHandler
 import sys
 import paho.mqtt.client as mqtt
 import time
-import json
 import os
 
 import GoodWeCommunicator as goodwe
