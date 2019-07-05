@@ -103,7 +103,7 @@ class MyDaemon(Daemon):
     
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print(("usage: %s start|stop|restart" % sys.argv[0]))
+        print ("usage: %s start|stop|restart|foreground" % sys.argv[0])
         sys.exit(2)
 
     if 'foreground' == sys.argv[1]:
