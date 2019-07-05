@@ -7,6 +7,7 @@ from https://github.com/vpelletier/python-hidraw
 from __future__ import absolute_import
 from __future__ import print_function
 import ctypes
+import struct
 import collections
 import fcntl
 import ioctl_opt
@@ -23,7 +24,7 @@ BUS_VIRTUAL = 0x06
 # hid.h
 _HID_MAX_DESCRIPTOR_SIZE = 4096
 
-if sys.version < '3':
+if sys.version[0] < '3':
     def b(x):
         return x
 else:
@@ -90,7 +91,7 @@ class HIDRaw(object):
         self._ioctl(_HIDIOCGRDESCSIZE, size, True)
         descriptor.size = size
         self._ioctl(_HIDIOCGRDESC, descriptor, True)
-        return ''.join(chr(x) for x in descriptor.value[:size.value])
+        return b''.join(chr(x) for x in descriptor.value[:size.value])
 
     # TODO: decode descriptor into a python object
     #def getReportDescriptor(self):
@@ -130,16 +131,17 @@ class HIDRaw(object):
         Send an output report.
         """
         length = len(report) + 1
-        buf = ctypes.create_string_buffer(b(chr(report_num) + report), length)
+        buf = ctypes.create_string_buffer(struct.pack("B", report_num) + report, length)
         self._device.write(buf)
 
+# sendFeatureReport seems to be unused, remove it?
 
     def sendFeatureReport(self, report, report_num=0):
         """
         Send a feature report.
         """
         length = len(report) + 1
-        buf = ctypes.create_string_buffer(b(chr(report_num) + report), length)
+        buf = ctypes.create_string_buffer(b(struct.pack("B", report_num) + report), length)
         self._ioctl(_HIDIOCSFEATURE(length), buf, True)
         print(_HIDIOCSFEATURE(length))
 

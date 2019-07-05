@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from enum import Enum
+from enum import IntEnum
 
 import time
 from pyudev import Devices, Context, Monitor, MonitorObserver
@@ -7,7 +7,8 @@ import datetime
 import hidrawpure as hidraw
 import os, fcntl
 import logging
-import json
+# simplejson supports byte strings
+import simplejson as json
 from six.moves import map
 from six.moves import range
 
@@ -28,7 +29,6 @@ class IDInfo(object):
         
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
-        
 
 class SettingInfo(object):
 
@@ -138,9 +138,8 @@ class Inverter(object):
         
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
-        
 
-class State(Enum):
+class State(IntEnum):
     OFFLINE = 1
     CONNECTED = 2
     DISCOVER = 3
@@ -154,7 +153,7 @@ class State(Enum):
     RUNNING = 11
 
 
-class InverterType(Enum):
+class InverterType(IntEnum):
     SINGLEPHASE = 1
     THREEPHASE = 3
     
@@ -329,9 +328,11 @@ class GoodWeCommunicator(object):
     def checkIncomingData(self):
         try:
             datstr = self.devfp.read(8)
+            if datstr == None:
+                raise IOError
 
-            for data in datstr:
-                incomingData = ord(data)
+            for data in bytearray(datstr):
+                incomingData = data
                 # continuously check for GoodWe HEADER packets.
                 # Some types of Inverters send out garbage all the time. The header packet is the only true marker for a meaningfull command following.
                 if self.lastReceivedByte == 0xAA and incomingData == 0x55:
