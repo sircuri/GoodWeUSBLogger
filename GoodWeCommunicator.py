@@ -133,7 +133,6 @@ class Inverter(object):
         self.isOnline = False                    #is the inverter online (see above)
         self.inverterType = InverterType.SINGLEPHASE    #1 or 3 phase inverter
         self.runningInfo = RunningInfo()
-        self.idInfo = IDInfo()
         self.settingInfo = SettingInfo()
         
     def toJSON(self):
@@ -146,10 +145,6 @@ class State(IntEnum):
     ALLOC = 4
     ALLOC_WAIT_CONFIRM = 5
     ALLOC_ASK_INFO = 6
-    ALLOC_ASK_ID = 7
-    ALLOC_ASK_ID_WAIT_CONFIRM = 8
-    ALLOC_ASK_SETTING = 9
-    ALLOC_ASK_SETTING_WAIT_CONFIRM = 10
     RUNNING = 11
 
 
@@ -234,8 +229,6 @@ class GoodWeCommunicator(object):
         self.numToRead = 0
         self.lastReceivedByte = 0x00
         self.inverter.runningInfo = RunningInfo()
-        self.inverter.idInfo = IDInfo()
-        self.inverter.settingInfo = SettingInfo()
         
         if self.openDevice():
             self.setState(State.CONNECTED)
@@ -400,10 +393,6 @@ class GoodWeCommunicator(object):
             self.handleRegistrationConfirmation(src)
         elif cc == CC_READ and fc == FC_RESRUN:
             self.handleIncomingInformation(src, len, data)
-        elif cc == CC_READ and fc == FC_RESID:
-            self.handleIncomingID(src, len, data)
-        elif cc == CC_READ and fc == FC_RESSTT:
-            self.handleIncomingSetting(src, len, data)
 
 
     def handleRegistration(self, serialNumber, length):
@@ -552,52 +541,7 @@ class GoodWeCommunicator(object):
     def bytes4ToFloat(self, bt, factor):
         #convert four byte to float and then dividing it by factor
         return float( (bt[0] << 24) | (bt[1] << 16) | (bt[2] << 8) | bt[3]) / factor
-
         
-    def handleIncomingID(self, address, dataLength, data):
-        self.log.debug("Handle incoming ID")
-        
-        if dataLength != 64:
-            self.log.debug("Wrong package. Expected 64 bytes of data.")
-            return
-        
-        idInfo = IDInfo()
-        idInfo.firmwareVersion         = "".join(map(chr, data[0:5]))
-        idInfo.modelName             = "".join(map(chr, data[5:15]))
-        idInfo.manufacturer         = "".join(map(chr, data[15:31]))
-        idInfo.serialNumber         = "".join(map(chr, data[31:47]))
-        idInfo.nominalVpv             = float("".join(map(chr, data[47:51]))) / 10
-        idInfo.internalVersion         = "".join(map(chr, data[51:63]))
-        idInfo.safetyCountryCode     = data[63]
-    
-        self.inverter.idInfo = idInfo
-        self.setState(State.ALLOC_ASK_SETTING)
-
-    
-    def handleIncomingSetting(self, address, dataLength, data):
-        self.log.debug("Handle incoming Setting")
-        
-        if dataLength != 12:
-            self.log.debug("Wrong package. Expected 12 bytes of data.")
-            return
-            
-        settingInfo = SettingInfo()    
-        dtPtr = 0
-        settingInfo.vpvStart = self.bytesToFloat(data[dtPtr:], 10)
-        dtPtr += 2
-        settingInfo.tStart = (data[dtPtr] << 8) | (data[dtPtr + 1])
-        dtPtr += 2
-        settingInfo.vacMin = self.bytesToFloat(data[dtPtr:], 10)
-        dtPtr += 2
-        settingInfo.vacMax = self.bytesToFloat(data[dtPtr:], 10)
-        dtPtr += 2
-        settingInfo.facMin = self.bytesToFloat(data[dtPtr:], 100)
-        dtPtr += 2
-        settingInfo.facMax = self.bytesToFloat(data[dtPtr:], 100)
-        
-        self.inverter.settingInfo = settingInfo
-        self.setState(State.RUNNING)
-
         
     def sendDiscovery(self):
         if not self.inverter.isOnline:
@@ -630,26 +574,6 @@ class GoodWeCommunicator(object):
             self.log.debug('Skip inverter %s for information. Confirmed = %s, Online = %s', self.inverter.address, self.inverter.addressConfirmed, self.inverter.isOnline)
 
 
-    def askInverterForID(self):
-        if self.inverter.isOnline:
-            self.log.debug("askInverterForID")
-            self.sendData(self.inverter.address, CC_READ, FC_QRYID, NODATA)
-                    
-            self.setState(State.ALLOC_ASK_ID_WAIT_CONFIRM)
-        else:
-            self.log.debug('Skip inverter %s for ID. Online = %s', self.inverter.address, self.inverter.isOnline)
-            
-
-    def askInverterForSetting(self):
-        if self.inverter.isOnline:
-            self.log.debug("askInverterForSetting")
-            self.sendData(self.inverter.address, CC_READ, FC_QRYSTT, NODATA)
-                    
-            self.setState(State.ALLOC_ASK_SETTING_WAIT_CONFIRM)
-        else:
-            self.log.debug('Skip inverter %s for Settings. Online = %s', self.inverter.address, self.inverter.isOnline)
-            
-            
     def handle(self):
     
         # check for state timeouts
@@ -682,12 +606,6 @@ class GoodWeCommunicator(object):
             elif self.state == State.ALLOC_ASK_INFO:
                 self.askInverterForInformation(True)
                 
-            elif self.state == State.ALLOC_ASK_ID:
-                self.askInverterForID()
-                
-            elif self.state == State.ALLOC_ASK_SETTING:
-                self.askInverterForSetting()
-
             elif self.state == State.RUNNING:
                 #ask for info update every second
                 if millis() - self.lastInfoUpdateSent >= self.INFO_INTERVAL:
@@ -702,4 +620,3 @@ class GoodWeCommunicator(object):
 
     def getInverter(self):
         return self.inverter
-
