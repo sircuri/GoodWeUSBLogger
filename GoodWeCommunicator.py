@@ -98,7 +98,6 @@ class Inverter(object):
         self.isOnline = False                    #is the inverter online (see above)
         self.inverterType = InverterType.SINGLEPHASE    #1 or 3 phase inverter
         self.runningInfo = RunningInfo()
-        self.settingInfo = SettingInfo()
         
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
