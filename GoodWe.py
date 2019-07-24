@@ -14,8 +14,8 @@ import GoodWeCommunicator as goodwe
 
 millis = lambda: int(round(time.time() * 1000))
 
-class MyDaemon(Daemon):
-    def run(self):
+class GoodWeProcessor(object):
+    def run_process(self, foreground):
         config = configparser.RawConfigParser()
         config.read('/etc/goodwe.conf')
         
@@ -37,8 +37,12 @@ class MyDaemon(Daemon):
         numeric_level = getattr(logging, loglevel.upper(), None)
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: %s' % loglevel)
-            
-        logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename=logfile, level=numeric_level)
+        
+        # If we are running in the foreground we use stderr for logging, if running as forking daemon we use the logfile            
+        if (foreground):
+            logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', stream=sys.stderr, level=numeric_level)
+        else:
+            logging.basicConfig(format='%(asctime)-15s %(funcName)s(%(lineno)d) - %(levelname)s: %(message)s', filename=logfile, level=numeric_level)
         
         try:
             client = mqtt.Client(mqttclientid)
@@ -49,7 +53,7 @@ class MyDaemon(Daemon):
             client.loop_start()
         except Exception as e:
             logging.error("%s:%s: %s",mqttserver, mqttport, e)
-            return
+            return 3
 
         logging.info('Connected to MQTT %s:%s', mqttserver, mqttport)
         
@@ -88,21 +92,33 @@ class MyDaemon(Daemon):
                 break
 
         client.loop_stop()
+        return 0
+
+class MyDaemon(Daemon):
+    def run(self):
+        processor = GoodWeProcessor()
+        processor.run_process(foreground=False)
 
     
 if __name__ == "__main__":
-    daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
-    if len(sys.argv) == 2:
-        if 'start' == sys.argv[1]:
-            daemon.start()
-        elif 'stop' == sys.argv[1]:
-            daemon.stop()
-        elif 'restart' == sys.argv[1]:
-            daemon.restart()
-        else:
-            print ("Unknown command")
-            sys.exit(2)
-        sys.exit(0)
-    else:
-        print ("usage: %s start|stop|restart" % sys.argv[0])
+    if len(sys.argv) != 2:
+        print ("usage: %s start|stop|restart|foreground" % sys.argv[0])
         sys.exit(2)
+
+    if 'foreground' == sys.argv[1]:
+        processor = GoodWeProcessor()
+        ret_val = processor.run_process(foreground=True)
+        sys.exit(retval)
+
+    daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
+ 
+    if 'start' == sys.argv[1]:
+        daemon.start()
+    elif 'stop' == sys.argv[1]:
+        daemon.stop()
+    elif 'restart' == sys.argv[1]:
+        daemon.restart()
+    else:
+        print ("Unknown command")
+        sys.exit(2)
+    sys.exit(0)
