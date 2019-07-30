@@ -162,6 +162,9 @@ WantedBy=multi-user.target
 ```
 The program can now as usual be started by _systemctl start goodwe.service_
 Systemd will run the program as the user goodwe and take care of restarting it when necessary. All logging information will be shown in the systemd logs.
+<<<<<<< HEAD
 
 ## python3
 Most of the information on python3 can be found above. Right now python2 is the default. If you want to use python3, replace the _#!/usr/bin/python_ at the top of _GoodWe.py_ with _#!/usr/bin/python3_, leave the rest of the line unchanged.
+=======
+>>>>>>> upstream/master
