@@ -1,4 +1,6 @@
 #!/usr/bin/python -tt
+from __future__ import absolute_import
+from __future__ import print_function
 from daemonpy.daemon import Daemon
 
 import configparser
@@ -7,7 +9,6 @@ from logging.handlers import TimedRotatingFileHandler
 import sys
 import paho.mqtt.client as mqtt
 import time
-import json
 import os
 
 import GoodWeCommunicator as goodwe
@@ -107,7 +108,7 @@ if __name__ == "__main__":
 
     if 'foreground' == sys.argv[1]:
         processor = GoodWeProcessor()
-        ret_val = processor.run_process(foreground=True)
+        retval = processor.run_process(foreground=True)
         sys.exit(retval)
 
     daemon = MyDaemon('/var/run/goodwecomm.pid', '/dev/null', '/dev/null', '/dev/null')
