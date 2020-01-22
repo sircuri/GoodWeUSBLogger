@@ -41,6 +41,31 @@ apt-get install --reinstall python-enum34
 The standard package python-enum34 is more feature rich than the enum module.
 ```
 
+## Check out repository and submodule
+
+Because of a dependency to the `python-daemon` repository, the easiest method for getting both repositories on your device is through Git.
+
+Install Git if you haven't already:
+
+```bash
+sudo apt-install -y git
+```
+
+Next, we need to check out this repository's code:
+
+```bash
+cd /opt
+sudo mkdir goodweusblogger
+sudo git clone https://github.com/sircuri/GoodWeUSBLogger.git goodweusblogger
+```
+
+Navigate to the _/opt/goodweusblogger/daemonpy_ folder, and execute the following command: 
+```bash
+git submodule update --init
+```
+
+This will check out the `python-daemon` submodule.
+
 ## Config
 
 Create file _/etc/udev/rules.d/98-my-usb-device.rules_ with:
